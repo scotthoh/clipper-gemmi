@@ -1,0 +1,12 @@
+prefix=/usr/local
+exec_prefix=/usr/local
+libdir=/usr/local/lib
+includedir=/usr/local/include
+
+Name: clipper
+Description: crystallographic automation and complex data manipulation libraries
+Version: 2.1
+Requires: ccp4c mmdb2
+Libs: -L${libdir} -lclipper-core -lclipper-contrib -lclipper-cns -lclipper-phs -lclipper-mmdb -lclipper-gemmi -lclipper-ccp4 -lclipper-minimol -lclipper-cif 
+Libs.private:  -lm 
+Cflags: -I${includedir} 
