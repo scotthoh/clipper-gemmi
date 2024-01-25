@@ -1,18 +1,15 @@
 /*! \file gemmi/clipper_gemmi.h
     \author Soon Wen Hoh
-    Header file for general gemmi interface
+    Header file for clipper-gemmi HKL data and map class type conversion
 */
 
 #ifndef CLIPPER_GEMMI
 #define CLIPPER_GEMMI
 
 #include "../ccp4/ccp4_mtz_io.h" // for datacolinf, datasetinf, crystalinf, hkldatacol
-#include "../ccp4/ccp4_mtz_types.h"
-#include "../core/container_map.h"
 #include "../core/hkl_datatypes.h"
-//#include "../core/nxmap.h"
-//#include "../core/xmap.h"
-#include <algorithm>
+#include "../core/nxmap.h"
+#include "../core/xmap.h"
 #include <gemmi/asudata.hpp> // AsuData
 #include <gemmi/ccp4.hpp>    // Ccp4
 #include <gemmi/mtz.hpp>     // Mtz, math, symmetry, unitcell, <algorithm> and <vector>
@@ -26,7 +23,7 @@ using Miller = gemmi::Miller;
 class GEMMI {
 public:
   //! Convert Clipper Spacegroup to Gemmi SpaceGroup
-  static const ::gemmi::SpaceGroup * spacegroup(const Spacegroup &spgr);
+  static const ::gemmi::SpaceGroup *spacegroup(const Spacegroup &spgr);
   //! Convert Gemmi SpaceGroup to Clipper Spacegroup
   static Spacegroup spacegroup(const gemmi::SpaceGroup &spgr);
   //! Convert Clipper RTop_orth to Gemmi Transfrom
@@ -54,58 +51,45 @@ public:
   //! Convert Gemmi cell to Clipper cell
   static Cell cell(const gemmi::UnitCell &cell);
 
-  //! Import mtz crystal info from gemmi::Mtz
-  static void import_mtz_crystal(std::vector<CCP4MTZfile::crystalinf> &crystals, const gemmi::Mtz &mtzobj);
-
-  //! Import data from gemmi's Mtz object into HKL_data object.
-  //template <class T>
-  static void import_hkl_data(HKL_data_base &cdata, const gemmi::Mtz &mtzobj, const String mtzpath);
+  //! Get hierachy info from gemmi::Mtz
+  static void read_hierarchy(std::vector<CCP4MTZfile::crystalinf> &crystals, const gemmi::Mtz &mtzobj);
 
   //! Set HKL_info from Gemmi::Mtz
-  static HKL_info as_HKL_info(const gemmi::Mtz &mtzobj, double tolerance = 1.e-8);
-
+  static HKL_info as_HKL_info(const gemmi::Mtz &mtzobj, double tolerance = 1.e-8, const bool &generate = false);
   //! Conversion of Gemmi unit cell and spacegroup to HKL_info
-  static HKL_info as_HKL_info(const gemmi::UnitCell &unit_cell, const gemmi::SpaceGroup &space_group, double d_min,
-                              double tolerance = 1.e-8);
-
+  static HKL_info as_HKL_info(const gemmi::UnitCell &unit_cell, const gemmi::SpaceGroup &sg, double d_min,
+                              double tolerance = 1.e-8, const bool &generate = false);
   //! Conversion of  Gemmi unit cell and spacegroup to HKL_info
-  static HKL_info as_HKL_info(const gemmi::UnitCell &unit_cell, const gemmi::SpaceGroup &space_group,
+  static HKL_info as_HKL_info(const gemmi::UnitCell &unit_cell, const gemmi::SpaceGroup &sg,
                               const std::vector<Miller> &miller_indices, double tolerance = 1.e-8);
 
-  // 30Oct2023 exneed to check the format data are coming out from gemmi
+  //! Import data from gemmi's Mtz object into HKL_data object.
+  static void import_hkl_data(HKL_data_base &cdata, const gemmi::Mtz &mtzobj, const String mtzpath);
+
   //! Conversion of F, sigF as HKL_data
-  static HKL_data<data64::F_sigF> as_HKL_data(HKL_info &hkl_info, const std::vector<Miller> &miller_indices,
-                                              const std::vector<double> &data, const std::vector<double> &sigmas);
+  static HKL_data<data64::F_sigF> as_HKL_data_fsigf(HKL_info &hkl_info, const std::vector<Miller> &miller_indices,
+                                                    const std::vector<double> &data, const std::vector<double> &sigmas);
 
   //! Conversion of complex structure factors.
-  /*! Converts a complex<dtype> returned from gemmi method
-  make_asu_data to clipper's HKL_data<data64::F_phi>.*/
-  static HKL_data<data64::F_phi> as_HKL_data(HKL_info &hkl_info, const gemmi::AsuData<std::complex<double>> &data);
-
-  //! Conversion of from gemmi F_phi to HKL_data<data64::F_phi>
-  // problem here
+  static HKL_data<data64::F_phi> as_HKL_data_fphi(HKL_info &hkl_info, const gemmi::AsuData<std::complex<double>> &data);
+  //! Conversion of vectors of F and Phi values to HKL_data<data64::F_phi>
   static HKL_data<data64::F_phi> as_HKL_data_fphi(HKL_info &hkl_info, const std::vector<Miller> &miller_indices,
                                                   const std::vector<double> &data_f,
                                                   const std::vector<double> &data_phi);
-
   //! Conversion of complex structure factors.
-  // clipper to gemmi
-  // continue here 20Oct2023 , check what output format expected
   static std::vector<std::complex<double>> extract_complex(const HKL_data<data64::F_phi> &hkl_data,
                                                            const std::vector<Miller> &miller_indices);
 
   //! Conversion of Hendrickson-Lattman coefficients
   static HKL_data<data64::ABCD> as_HKL_data(HKL_info &hkl_info, const std::vector<Miller> &miller_indices,
                                             const std::vector<const gemmi::Mtz::Column *> &data);
-
-  //! Conversion of Hendrickson-Lattman Coefficients.
-  static std::vector<std::vector<double>> extract_hendrickson_lattman(const HKL_data<data64::ABCD> &hkl_data,
-                                                                      const std::vector<Miller> &miller_indices);
+  //! Conversion of Hendrickson-Lattman coefficients.
+  static std::vector<std::array<double, 4>> extract_hendrickson_lattman(const HKL_data<data64::ABCD> &hkl_data,
+                                                                        const std::vector<Miller> &miller_indices);
 
   //! Conversion of centroid phases.
   static std::vector<double> extract_centroid_phases(const HKL_data<data64::Phi_fom> &hkl_data,
                                                      const std::vector<Miller> &miller_indices);
-
   //! Conversion of figures of merit
   static std::vector<double> extract_figure_of_merit(const HKL_data<data64::Phi_fom> &hkl_data,
                                                      const std::vector<Miller> &miller_indices);
@@ -114,7 +98,6 @@ public:
   template <class T> static void import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<T> &mapobj);
   //! Import map data from gemmi's Ccp4.grid into NXmap
   template <class T> static void import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<T> &mapobj);
-
   //! Export map data to gemmi's Ccp4.grid from Xmap
   template <class T> static void export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<T> &mapobj);
   //! Export map data to gemmi's Ccp4.grid from NXmap
@@ -144,17 +127,14 @@ template <class T> void GEMMI::import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<T> &
   if (r.is_null())
     r = Grid_sampling(grid[0], grid[1], grid[2]);
   xmap.init(s, c, r);
-
   // get grid bound and axis order
   for (int i = 0; i < 3; i++) {
     gfms1[i] = gfms0[i] + dim[i] - 1;
     orderxyz[orderfms[i]] = i;
   }
-
   // copy map data from gemmi map object
   Xmap_base::Map_reference_coord x(xmap);
   bool zero_orig = (std::all_of(gfms0.cbegin(), gfms0.cend(), [](const int index) { return index == 0; }));
-
   for (g[2] = gfms0[2]; g[2] <= gfms1[2]; g[2]++) {
     for (g[1] = gfms0[1]; g[1] <= gfms1[1]; g[1]++) {
       for (g[0] = gfms0[0]; g[0] <= gfms1[0]; g[0]++) {
@@ -200,7 +180,6 @@ template <class T> void GEMMI::import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<T
   \param xmap The Xmap to be exported.
   \param mapobj The gemmi::Ccp4 map to hold the grid data.*/
 template <class T> void GEMMI::export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<T> &mapobj) {
-
   std::array<int, 3> orderfms, orderxyz, grid, gfms0, gfms1, dim;
   int spg = xmap.spacegroup().descr().spacegroup_number();
   //  use axis order 1,2,3 (fast, medium, slow) for gemmi Ccp4 map
@@ -230,23 +209,7 @@ template <class T> void GEMMI::export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<T> &
       }
     }
   }
-  // prepare and set headers for gemmi map object
   prepare_gemmi_header(mapobj, dim, gfms0, grid, orderfms, xmap.cell());
-  //mapobj.prepare_ccp4_header_except_mode_and_stats();
-  //mapobj.set_header_3i32(1, dim[orderxyz[0]], dim[orderxyz[1]], dim[orderxyz[2]]);       // NX, NY, NZ
-  //mapobj.set_header_3i32(5, gfms0[orderxyz[0]], gfms0[orderxyz[1]], gfms0[orderxyz[2]]); // NXSTART, NYSTART, NZSTART
-  //mapobj.set_header_3i32(8, grid[0], grid[1], grid[2]);                                  // MX, MY, MZ
-  //mapobj.set_header_3i32(17, orderfms[0], orderfms[1], orderfms[2]);                     // MAPC, MAPR, MAPS
-  //mapobj.set_header_float(11, (float)xmap.cell().a());                                   // Cell params
-  //mapobj.set_header_float(12, (float)xmap.cell().b());
-  //mapobj.set_header_float(13, (float)xmap.cell().c());
-  //mapobj.set_header_float(14, (float)xmap.cell().alpha_deg());
-  //mapobj.set_header_float(15, (float)xmap.cell().beta_deg());
-  //mapobj.set_header_float(16, (float)xmap.cell().gamma_deg());
-  //mapobj.setup(NAN);
-  //mapobj.grid.symmetrize_max();
-  //mapobj.update_ccp4_header(2);
-  // maybe verbose tag to write out stats?
 }
 
 /*! Export map data to gemmi's Ccp4::grid from NXmap.
@@ -254,9 +217,8 @@ template <class T> void GEMMI::export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<T> &
   \param mapobj The gemmi::Ccp4 map to hold the grid data.
   \param unitcell The unit cell for the map.*/
 template <class T> void GEMMI::export_nxmap(const NXmap<T> &nxmap, gemmi::Ccp4<T> &mapobj, const Cell &unitcell) {
-
   std::array<int, 3> grid, gfms0, gfms1, dim;
-  std::array<int, 3> orderfms{1,2,3};
+  std::array<int, 3> orderfms{1, 2, 3};
   // grids
   Coord_frac c0, c1;
   c0 = nxmap.coord_orth(Coord_map(0, 0, 0)).coord_frac(unitcell);
@@ -289,23 +251,16 @@ template <class T> void GEMMI::export_nxmap(const NXmap<T> &nxmap, gemmi::Ccp4<T
       }
     }
   }
-  // prepare gemmi::Ccp4::grid
   prepare_gemmi_header(mapobj, dim, gfms0, grid, orderfms, unitcell);
-  //mapobj.prepare_ccp4_header_except_mode_and_stats();
-  //mapobj.set_header_3i32(1, dim[0], dim[1], dim[2]);
-  //mapobj.set_header_3i32(5, gfms0[0], gfms0[1], gfms0[2]);
-  //mapobj.set_header_3i32(8, grid[0], grid[1], grid[2]);
-  //mapobj.set_header_3i32(17, 1, 2, 3); // fast, medium ,slow order
-  //mapobj.set_header_float(11, (float)unitcell.a());
-  //mapobj.set_header_float(12, (float)unitcell.b());
-  //mapobj.set_header_float(13, (float)unitcell.c());
-  //mapobj.set_header_float(14, (float)unitcell.alpha_deg());
-  //mapobj.set_header_float(15, (float)unitcell.beta_deg());
-  //mapobj.set_header_float(16, (float)unitcell.gamma_deg());
-  //mapobj.setup(NAN);
-  //mapobj.update_ccp4_header(2);
 }
 
+/* Internal: Prepare gemmi::Ccp4 map object header.
+  mapobj - gemmi Ccp4 map object
+  dim - dimension of grid in std::array<int, 3>
+  gfms0 - NXSTART, NYSTART, NZSTART; location of first column, row, section
+  grid - full grid size
+  orderfms - fast medium slow order
+  unitcell - unit cell */
 template <class T>
 void prepare_gemmi_header(gemmi::Ccp4<T> &mapobj, std::array<int, 3> dim, std::array<int, 3> gfms0,
                           std::array<int, 3> grid, std::array<int, 3> orderfms, Cell unitcell) {
@@ -321,10 +276,10 @@ void prepare_gemmi_header(gemmi::Ccp4<T> &mapobj, std::array<int, 3> dim, std::a
   mapobj.set_header_float(15, (float)unitcell.beta_deg());
   mapobj.set_header_float(16, (float)unitcell.gamma_deg());
   mapobj.setup(NAN);
-  if (mapobj.grid.spacegroup->number != 1) mapobj.grid.symmetrize_max();
+  if (mapobj.grid.spacegroup->number != 1)
+    mapobj.grid.symmetrize_max();
   mapobj.update_ccp4_header(2);
 }
-
 
 } // namespace clipper
 

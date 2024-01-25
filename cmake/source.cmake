@@ -139,16 +139,6 @@ set(clipper-mmdb_headers
 ${CMAKE_SOURCE_DIR}/clipper/mmdb/clipper_mmdb.h
 )
 
-set(clipper-gemmi_sources
-${CMAKE_SOURCE_DIR}/clipper/gemmi/clipper_gemmi.cpp
-${CMAKE_SOURCE_DIR}/clipper/gemmi/clipper_gemmi_model.cpp
-)
-
-set(clipper-gemmi_headers
-${CMAKE_SOURCE_DIR}/clipper/gemmi/clipper_gemmi.h
-${CMAKE_SOURCE_DIR}/clipper/gemmi/clipper_gemmi_model.h
-)
-
 set(clipper-cif_sources
 ${CMAKE_SOURCE_DIR}/clipper/cif/cif_data_io.cpp
 )
@@ -171,11 +161,25 @@ ${CMAKE_SOURCE_DIR}/clipper/ccp4/ccp4_mtz_types.h
 ${CMAKE_SOURCE_DIR}/clipper/ccp4/ccp4_utils.h
 )
 
+# added clipper-gemmi files
+set(clipper-gemmi_sources
+${CMAKE_SOURCE_DIR}/clipper/gemmi/clipper_gemmi.cpp
+${CMAKE_SOURCE_DIR}/clipper/gemmi/clipper_gemmi_model.cpp
+)
+
+set(clipper-gemmi_headers
+${CMAKE_SOURCE_DIR}/clipper/gemmi/clipper_gemmi.h
+${CMAKE_SOURCE_DIR}/clipper/gemmi/clipper_gemmi_model.h
+)
+
+# changed minimol_io to minimol_io_seq, minimol_io_mmdb, minimol_io_gemmi
 set(clipper-minimol_sources
 ${CMAKE_SOURCE_DIR}/clipper/minimol/container_minimol.cpp
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol.cpp	
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_data.cpp
-${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io.cpp
+${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_seq.cpp
+${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_gemmi.cpp
+${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_mmdb.cpp
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_seq.cpp
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_utils.cpp
 )
@@ -184,7 +188,9 @@ set(clipper-minimol_headers
 ${CMAKE_SOURCE_DIR}/clipper/minimol/container_minimol.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_data.h
-${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io.h
+${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_gemmi.h
+${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_mmdb.h
+${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_seq.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_seq.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_utils.h
 )

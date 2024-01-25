@@ -1,10 +1,11 @@
-/* clipper_gemmi.cpp: Gemmi wrapper */
-// Author: Soon Wen Hoh, 2023, University of York
+/*! \file gemmi/clipper_gemmi_model.h
+    \author Soon Wen Hoh
+    Header file for clipper-gemmi model class type conversion
+*/
 
 #ifndef CLIPPER_GEMMI_MODEL
 #define CLIPPER_GEMMI_MODEL
 
-#include "../core/coords.h"
 #include "clipper_gemmi.h"
 
 #include <gemmi/model.hpp> // for Gemmi's model data structures
@@ -12,11 +13,8 @@
 #include <gemmi/to_mmcif.hpp>
 #include <gemmi/to_cif.hpp>
 
-// #include <clipper/clipper.h>
-
 namespace clipper
 {
-
   namespace gemmi
   {
     typedef ::gemmi::Structure CGStructure;
@@ -38,7 +36,8 @@ namespace clipper
     typedef ::gemmi::PdbReadOptions CGPdbReadOptions;
     typedef ::gemmi::PdbWriteOptions CGPdbWriteOptions;
     typedef ::gemmi::MmcifOutputGroups CGMmcifOutputGroups;
-    typedef ::gemmi::cif::Style CGCifStyle;
+    //typedef ::gemmi::cif::Style CGCifStyle;
+    typedef ::gemmi::cif::WriteOptions CGCifWriteOptions;
     typedef ::gemmi::cif::Document CGCifDocument;
   }
 
@@ -147,7 +146,7 @@ namespace clipper
     GemmiStructure(const gemmi::CGStructure &s) : gemmi::CGStructure(s) {}
 
     //! get IDs for model, chain, residue or atom
-    String GetID_str(const String &model_name, const gemmi::CGCRA &cra, const String &hnd);
+    static String GetID_str(const String &model_name, const gemmi::CGCRA &cra, const String &entity);
     //! get spacegroup and return in clipper::Spacegroup format
     Spacegroup spacegroup() const;
     //! get cell and return in clipper::Cell format
@@ -169,7 +168,7 @@ namespace clipper
   };
 
   //! GEMMI atom list class
-  /*! This class is used to convert GEMMI CRA to Clipper Atom_list
+  /*! This class is used to convert gemmi CraProxy to Clipper Atom_list
    It is a trivial derivation of clipper::Atom_list, and may be used
    wherever an Atom_list is required. */
   class GemmiAtom_list : public Atom_list
@@ -179,51 +178,6 @@ namespace clipper
     GemmiAtom_list(gemmi::CGCraProxy cra, const int natom);
   };
 
-  struct GemmiPdbReadOptions : public gemmi::CGPdbReadOptions
-  {
-  public:
-    //! null constructor
-    GemmiPdbReadOptions() {}
-    //! copy constructor: from Gemmi PdbReadOptions
-    GemmiPdbReadOptions(gemmi::CGPdbReadOptions o) : gemmi::CGPdbReadOptions(o) {}
-    //! options
-    bool force_label = false; //!< assign label_seq even if full sequence is not known (assumes no gaps)
-    bool copy_remarks = true; //!< to keep or discard resolution remark and REMARK 350
-  };
-
-  struct GemmiPdbWriteOptions : public gemmi::CGPdbWriteOptions
-  {
-  public:
-    //! null constructor
-    GemmiPdbWriteOptions() {}
-    //! copy constructor: from Gemmi PdbWriteOptions
-    GemmiPdbWriteOptions(gemmi::CGPdbWriteOptions o) : gemmi::CGPdbWriteOptions(o) {}
-  };
-
-  struct GemmiMmcifOutputGroups : public gemmi::CGMmcifOutputGroups
-  {
-  public:
-    //! null constructor
-    // GemmiMmcifOutputGroups() {}
-    //! copy constructor: from Gemmi MmcifOutputGroups
-    GemmiMmcifOutputGroups(gemmi::CGMmcifOutputGroups o) : gemmi::CGMmcifOutputGroups(o) {}
-    GemmiMmcifOutputGroups(bool o) : gemmi::CGMmcifOutputGroups(o) {}
-  };
-
-  //! Write options for writing PDB/CIF file
-  /*! A few simplified quick options for writing PDB/CIF files.
-      Options such as Minimal and AllAuth will always overwrite
-      what is set in GEMMIFile::set_mmcif_output_groups
-      if they contradicts. */
-  struct GemmiWriteOptions
-  {
-    bool Minimal = false;         //!< disable many records (HEADER, TITLE, ...) for PDB and mmcif
-    bool ShortTer = false;        //!< write PDB TER records without numbers
-    bool LinkR = false;           //!< use non-standard Refmac LINKR record instead of LINK
-    bool AllAuth = false;         //!< write _atom_site.auth_atom_id (same as label_atom_id) and auth_comp_id (same as label_comp_id) for mmcif
-    bool ShortChainNames = false; //!< shorten chain names, useful for PDB output if chain name size > 2
-    bool UpdateCifDoc = false;    //!< update existing mmcif blocks from read in document
-  };
 }
 
 #endif

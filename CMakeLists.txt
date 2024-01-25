@@ -3,10 +3,10 @@ project(clipper CXX)
 
 include(GNUInstallDirs)
 
-option(BUILD_SHARED_LIBS "build shared libs (true)" OFF)
+option(BUILD_SHARED_LIBS "build shared libs (true)" TRUE)
 
 find_package(CCP4 REQUIRED mmdb2 ccp4c)
-find_package(gemmi 0.6 CONFIG REQUIRED)
+find_package(gemmi 0.6.4 CONFIG REQUIRED)
 #find_library(GEMMI NAMES gemmi 
 #             HINTS ${LIB_INSTALL_DIR} ${CMAKE_INSTALL_PREFIX}/lib
 #             NO_SYSTEM_ENVIRONMENT_PATH NO_CMAKE_SYSTEM_PATH)
@@ -254,7 +254,6 @@ add_library(clipper::gemmi ALIAS clipper-gemmi)
 
 target_link_libraries(clipper-gemmi PRIVATE 
                              clipper::core gemmi::gemmi_cpp clipper::ccp4)
-			     #${GEMMI_LIBRARY}
 
 if(Threads_FOUND)
 target_link_libraries(clipper-gemmi PRIVATE Threads::Threads)
@@ -294,7 +293,7 @@ target_link_libraries(clipper-minimol PRIVATE
                              clipper::gemmi
                              ${CCP4C_LIBRARY}
                              ${MMDB2_LIBRARY}
-                             gemmi::gemmi_cpp #${GEMMI_LIBRARY}
+                             gemmi::gemmi_cpp
 )
 if(Threads_FOUND)
 target_link_libraries(clipper-minimol PRIVATE Threads::Threads)
