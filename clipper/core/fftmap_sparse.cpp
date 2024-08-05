@@ -43,16 +43,7 @@
 #include "fftmap_sparse.h"
 
 #include "hkl_datatypes.h"
-
-#include <config.h>
-#ifdef FFTW2_PREFIX_S
-# include <srfftw.h>
-#else
-# include <rfftw.h>
-#endif
-
-// compile-time check if fftw above is really single-precision
-static float* dummy = (fftw_real*) NULL;
+#include <fftw3.h>
 
 
 namespace clipper {
@@ -153,7 +144,8 @@ void FFTmap_sparse_p1_hx::set_hkl( const HKL& hkl, const std::complex<ffttype>& 
 
 /*! The 'require' functions must have been called first to mark the
   required data in the target space. (Source space requirements are
-  inferred automatically). */
+  inferred automatically).
+  \param scale Scale for normalising FFT data */
 void FFTmap_sparse_p1_hx::fft_h_to_x( const ftype& scale )
 {
   // prep fftw
@@ -162,15 +154,13 @@ void FFTmap_sparse_p1_hx::fft_h_to_x( const ftype& scale )
   std::vector<std::complex<ffttype> > in(nmax), out(nmax);
   ffttype zero_real = 0.0;
   std::complex<ffttype> zero( zero_real, zero_real );
-  fftw_plan planu, planv; rfftw_plan planw;
+  fftwf_plan planu, planv, planw;
   std::complex<ffttype>* ptr; ffttype* rptr;
   int u, v, w;
   int hw = grid_real_.nw()/2;
   ffttype s = ffttype( scale );
 
-  int flags = ( type_ == Measure ) ?
-    ( FFTW_USE_WISDOM | FFTW_MEASURE ) :
-    ( FFTW_USE_WISDOM | FFTW_ESTIMATE );
+  unsigned int flags = ( type_ == Measure ) ? ( FFTW_MEASURE ) : ( FFTW_ESTIMATE );
 
   // make ul map
   std::vector<bool> map_l( grid_reci_.nw(), false ); 
@@ -183,29 +173,29 @@ void FFTmap_sparse_p1_hx::fft_h_to_x( const ftype& scale )
       if ( row_uv( u, v ) != NULL ) row_u[u] = true;
 
   mutex.lock();
-  planu = fftw_create_plan_specific( grid_real_.nu(), FFTW_FORWARD,
-				     flags | FFTW_IN_PLACE,
-				     (fftw_complex*)&in[0], 1,
-				     (fftw_complex*)&out[0], 1 );
-  planv = fftw_create_plan_specific( grid_real_.nv(), FFTW_FORWARD,
-				     flags | FFTW_OUT_OF_PLACE,
-				     (fftw_complex*)&in[0], 1,
-				     (fftw_complex*)&out[0], 1 );
-  planw = rfftw_create_plan_specific( grid_real_.nw(), FFTW_COMPLEX_TO_REAL,
-				      flags | FFTW_IN_PLACE,
-				      (fftw_real*)&in[0], 1,
-				      (fftw_real*)&out[0], 1 );
+  planu = fftwf_plan_dft_1d( grid_real_.nu(),
+				      (fftwf_complex*)&in[0],
+				      (fftwf_complex*)&in[0], // in place
+              FFTW_FORWARD, flags);
+  planv = fftwf_plan_dft_1d( grid_real_.nv(),
+				      (fftwf_complex*)&in[0],
+				      (fftwf_complex*)&out[0], // out of place
+              FFTW_FORWARD, flags);
+  planw = fftwf_plan_r2r_1d( grid_real_.nw(),
+				      (ffttype*)&in[0],
+				      (ffttype*)&in[0], // in place
+              FFTW_HC2R, flags );
   mutex.unlock();
 
-  // transform along h->u
+  // transform along h->u (in place)
   for ( w = 0; w < grid_reci_.nw(); w++ )
     for ( v = 0; v < grid_reci_.nv(); v++ ) {
       ptr = row_kl( v, w );
       if ( ptr != NULL )
-        fftw_one( planu, (fftw_complex*)ptr, (fftw_complex*)&out[0] );
+        fftwf_execute_dft(planu, (fftwf_complex*)ptr, (fftwf_complex*)ptr);
     }
 
-  // copy, transform along k->v, and copy
+  // copy, transform along k->v (out of place), and copy
   for ( w = 0; w < grid_reci_.nw(); w++ ) if ( map_l[w] )
     for ( u = 0; u < grid_real_.nu(); u++ ) if ( row_u[u] ) {
       for ( v = 0; v < grid_real_.nv(); v++ ) {
@@ -213,7 +203,7 @@ void FFTmap_sparse_p1_hx::fft_h_to_x( const ftype& scale )
 	if ( ptr != NULL ) in[v] = s * ptr[u];
 	else               in[v] = zero;
       }
-      fftw_one( planv, (fftw_complex*)&in[0], (fftw_complex*)&out[0] );
+      fftwf_execute_dft( planv, (fftwf_complex*)&in[0], (fftwf_complex*)&out[0] );
       for ( v = 0; v < grid_real_.nv(); v++ ) {
 	rptr = row_uv( u, v );
 	if ( rptr != NULL ) {
@@ -223,18 +213,18 @@ void FFTmap_sparse_p1_hx::fft_h_to_x( const ftype& scale )
       }
     }
 
-  // transform along l->w
+  // transform along l->w (in place)
   for ( v = 0; v < grid_real_.nv(); v++ )
     for ( u = 0; u < grid_real_.nu(); u++ ) {
       rptr = row_uv( u, v );
       if ( rptr != NULL )
-	rfftw_one( planw, (fftw_real*)rptr, (fftw_real*)&out[0] );
+	fftwf_execute_r2r( planw, (ffttype*)rptr, (ffttype*)rptr );
     }
 
   mutex.lock();
-  fftw_destroy_plan( planu );
-  fftw_destroy_plan( planv );
-  rfftw_destroy_plan( planw );
+  fftwf_destroy_plan( planu );
+  fftwf_destroy_plan( planv );
+  fftwf_destroy_plan( planw );
   mutex.unlock();
 }
 
@@ -290,7 +280,8 @@ const std::complex<ffttype> FFTmap_sparse_p1_xh::get_hkl( const HKL& hkl ) const
 
 /*! The 'require' functions must have been called first to mark the
   required data in the target space. (Source space requirements are
-  inferred automatically). */
+  inferred automatically). 
+  \param scale Scale for normalising FFT data */
 void FFTmap_sparse_p1_xh::fft_x_to_h( const ftype& scale )
 {
   // prep fftw
@@ -299,15 +290,13 @@ void FFTmap_sparse_p1_xh::fft_x_to_h( const ftype& scale )
   std::vector<std::complex<ffttype> > in(nmax), out(nmax);
   ffttype zero_real = 0.0;
   std::complex<ffttype> zero( zero_real, zero_real );
-  fftw_plan planu, planv; rfftw_plan planw;
+  fftwf_plan planu, planv, planw;
   std::complex<ffttype>* ptr; ffttype* rptr;
   int u, v, w;
   int hw = grid_real_.nw()/2;
   ffttype s = ffttype( scale ) / grid_real_.size();
 
-  int flags = ( type_ == Measure ) ?
-    ( FFTW_USE_WISDOM | FFTW_MEASURE ) :
-    ( FFTW_USE_WISDOM | FFTW_ESTIMATE );
+  unsigned int flags = ( type_ == Measure ) ? ( FFTW_MEASURE ) : ( FFTW_ESTIMATE );
 
   // make ul map
   std::vector<bool> map_l( grid_reci_.nw(), false ); 
@@ -320,43 +309,44 @@ void FFTmap_sparse_p1_xh::fft_x_to_h( const ftype& scale )
       if ( row_uv( u, v ) != NULL ) row_u[u] = true;
 
   mutex.lock();
-  planu = fftw_create_plan_specific( grid_real_.nu(), FFTW_BACKWARD,
-				     flags | FFTW_IN_PLACE,
-				     (fftw_complex*)&in[0], 1,
-				     (fftw_complex*)&out[0], 1 );
-  planv = fftw_create_plan_specific( grid_real_.nv(), FFTW_BACKWARD,
-				     flags | FFTW_OUT_OF_PLACE,
-				     (fftw_complex*)&in[0], 1,
-				     (fftw_complex*)&out[0], 1 );
-  planw = rfftw_create_plan_specific( grid_real_.nw(), FFTW_REAL_TO_COMPLEX,
-				      flags | FFTW_IN_PLACE,
-				      (fftw_real*)&in[0], 1,
-				      (fftw_real*)&out[0], 1 );
+  planu = fftwf_plan_dft_1d( grid_real_.nu(),
+				     (fftwf_complex*)&in[0],
+				     (fftwf_complex*)&in[0], // in place
+             FFTW_BACKWARD, flags);
+  planv = fftwf_plan_dft_1d( grid_real_.nv(),
+				     (fftwf_complex*)&in[0],
+				     (fftwf_complex*)&out[0], // out of place
+             FFTW_BACKWARD, flags);
+  planw = fftwf_plan_r2r_1d( grid_real_.nw(),
+				      (ffttype*)&in[0],
+				      (ffttype*)&in[0], // in place
+              FFTW_R2HC, flags);
   mutex.unlock();
 
-  // transform along l->w
+  // transform along l->w (in place)
   for ( v = 0; v < grid_real_.nv(); v++ )
     for ( u = 0; u < grid_real_.nu(); u++ ) {
       rptr = row_uv( u, v );
       if ( rptr != NULL )
-	rfftw_one( planw, (fftw_real*)rptr, (fftw_real*)&out[0] );
+	fftwf_execute_r2r( planw, (ffttype*)rptr, (ffttype*)rptr );
     }
 
-  // copy, transform along k->v, and copy
+  // copy, transform along k->v (out of place), and copy
   for ( w = 0; w < grid_reci_.nw(); w++ ) if ( map_l[w] )
     for ( u = 0; u < grid_real_.nu(); u++ ) if ( row_u[u] ) {
       for ( v = 0; v < grid_real_.nv(); v++ ) {
 	rptr = row_uv( u, v );
 	if ( rptr != NULL ) {
-	  if ( w != 0 && w != hw )
+	  if ( w != 0 && w != hw ){
 	    in[v] = std::complex<ffttype>( rptr[w], -rptr[grid_real_.nw()-w] );
-          else
+    } else {
 	    in[v] = std::complex<ffttype>( rptr[w], zero_real );
+    }
 	} else {
 	  in[v] = zero;
 	}
       }
-      fftw_one( planv, (fftw_complex*)&in[0], (fftw_complex*)&out[0] );
+      fftwf_execute_dft( planv, (fftwf_complex*)&in[0], (fftwf_complex*)&out[0] );
       for ( v = 0; v < grid_real_.nv(); v++ ) {
 	ptr = row_kl( v, w );
 	if ( ptr != NULL ) ptr[u] = s * out[v];
@@ -368,13 +358,13 @@ void FFTmap_sparse_p1_xh::fft_x_to_h( const ftype& scale )
     for ( v = 0; v < grid_reci_.nv(); v++ ) {
       ptr = row_kl( v, w );
       if ( ptr != NULL )
-        fftw_one( planu, (fftw_complex*)ptr, (fftw_complex*)&out[0] );
+        fftwf_execute_dft( planu, (fftwf_complex*)ptr, (fftwf_complex*)ptr );
     }
 
   mutex.lock();
-  fftw_destroy_plan( planu );
-  fftw_destroy_plan( planv );
-  fftw_destroy_plan( planw );
+  fftwf_destroy_plan( planu );
+  fftwf_destroy_plan( planv );
+  fftwf_destroy_plan( planw );
   mutex.unlock();
 }
 

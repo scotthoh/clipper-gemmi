@@ -44,15 +44,7 @@
 
 #include "hkl_datatypes.h"
 
-#include <config.h>
-#ifdef FFTW2_PREFIX_S
-# include <srfftw.h>
-#else
-# include <rfftw.h>
-#endif
-
-// compile-time check if fftw above is really single-precision
-static float* dummy = (fftw_real*) NULL;
+#include <fftw3.h>
 
 
 namespace clipper {
@@ -149,25 +141,26 @@ void FFTmap_p1::reset()
 void FFTmap_p1::fft_h_to_x( const ftype& scale )
 {
   if ( mode == REAL ) return;
+  // need this spare vector for planning
+  // if FFTW_MEASURE is used, it overwrites in/out array during planning
+  std::vector<std::complex<ffttype>> arr(grid_real_.size());
   // scale
   ffttype s = ffttype( scale );
   int n = grid_reci_.size();
   for ( int i = 0; i < n; i++ ) data_c[i] = std::conj( s * data_c[i] );
   // fft
-  int flags = ( type_ == Measure ) ?
-    ( FFTW_IN_PLACE | FFTW_USE_WISDOM | FFTW_MEASURE ) :
-    ( FFTW_IN_PLACE | FFTW_USE_WISDOM | FFTW_ESTIMATE );
+  unsigned int flags = ( type_ == Measure ) ? ( FFTW_MEASURE ) : ( FFTW_ESTIMATE );
 
   mutex.lock();
-  fftwnd_plan plan =
-    rfftw3d_create_plan( grid_sam_.nu(), grid_sam_.nv(), grid_sam_.nw(),
-			 FFTW_COMPLEX_TO_REAL, flags );
+  fftwf_plan plan =
+    fftwf_plan_dft_c2r_3d( grid_sam_.nu(), grid_sam_.nv(), grid_sam_.nw(),
+			 (fftwf_complex*)arr.data(), (ffttype*)arr.data(), flags );
   mutex.unlock();
 
-  rfftwnd_one_complex_to_real(plan, (fftw_complex*)data_c, NULL);
+  fftwf_execute_dft_c2r(plan, (fftwf_complex*)data_c, (ffttype*)data_c);
 
   mutex.lock();
-  rfftwnd_destroy_plan(plan);
+  fftwf_destroy_plan(plan);
   mutex.unlock();
 
   // done
@@ -181,21 +174,22 @@ void FFTmap_p1::fft_h_to_x( const ftype& scale )
 void FFTmap_p1::fft_x_to_h( const ftype& scale )
 {
   if ( mode == RECI ) return;
+  // need this spare vector for planning
+  // if FFTW_MEASURE is used, it overwrites in/out array during planning
+  std::vector<std::complex<ffttype>> arr(grid_real_.size());
   // fft
-  int flags = ( type_ == Measure ) ?
-    ( FFTW_IN_PLACE | FFTW_USE_WISDOM | FFTW_MEASURE ) :
-    ( FFTW_IN_PLACE | FFTW_USE_WISDOM | FFTW_ESTIMATE );
-
+  int flags = ( type_ == Measure ) ? ( FFTW_MEASURE ) : ( FFTW_ESTIMATE );
+  
   mutex.lock();
-  fftwnd_plan plan =
-    rfftw3d_create_plan( grid_sam_.nu(), grid_sam_.nv(), grid_sam_.nw(),
-			 FFTW_REAL_TO_COMPLEX, flags );
+  fftwf_plan plan =
+    fftwf_plan_dft_r2c_3d( grid_sam_.nu(), grid_sam_.nv(), grid_sam_.nw(),
+			 (ffttype*)arr.data(), (fftwf_complex*)arr.data(), flags );
   mutex.unlock();
 
-  rfftwnd_one_real_to_complex(plan, (fftw_real*)data_r, NULL);
+  fftwf_execute_dft_r2c(plan, (ffttype*)data_r, (fftwf_complex*)data_r);
 
   mutex.lock();
-  rfftwnd_destroy_plan(plan);
+  fftwf_destroy_plan(plan);
   mutex.unlock();
 
   // scale

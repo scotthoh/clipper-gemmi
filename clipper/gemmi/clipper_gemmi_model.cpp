@@ -20,7 +20,7 @@ namespace clipper
   /*! \return Element name as String*/
   String GemmiAtom::element() const
   {
-    return String(gemmi::CGAtom::element.name());
+    return String(gemmi::Atom::element.name());
   }
 
   /*! \return Orthogonal coordinates in clipper Coord_orth.
@@ -61,7 +61,7 @@ namespace clipper
 
   void GemmiAtom::set_element(const String &n)
   {
-    gemmi::CGAtom::element = ::gemmi::Element((char *)n.c_str());
+    gemmi::Atom::element = ::gemmi::Element((char *)n.c_str());
   }
 
   void GemmiAtom::set_coord_orth(const Coord_orth &v)
@@ -123,7 +123,7 @@ namespace clipper
   /*! \return The atomic charge as clipper String with sign; sign+digit. */
   String GemmiAtom::charge() const
   {
-    signed char c = gemmi::CGAtom::charge;
+    signed char c = gemmi::Atom::charge;
     char digit = c ? c > 0 ? '0' + c : '0' - c : ' ';
     char sign = c ? c > 0 ? '+' : '-' : ' ';
     return String(&sign, 1) + String(&digit, 1);
@@ -192,7 +192,7 @@ namespace clipper
     \param model_name Name for model
     \param cra chain, residue, atom - CRA struct object
     \param entity entity - Model, Chain, Residue, or Atom */
-  String GemmiStructure::GetID_str(const String &model_name, const gemmi::CGCRA &cra, const String &entity)
+  String GemmiStructure::GetID_str(const String &model_name, const gemmi::CRA &cra, const String &entity)
   {
     String r = "/"; // clipper String start with "/"
     if (!model_name.empty())
@@ -248,8 +248,6 @@ namespace clipper
   void GemmiStructure::set_cell(const Cell &cell_in)
   {
     this->cell = GEMMI::cell(cell_in);
-    //gemmi::CGStructure::cell.set(cell_in.a(), cell_in.b(), cell_in.c(),
-    //                             cell_in.alpha_deg(), cell_in.beta_deg(), cell_in.gamma_deg());
   }
 
   /*! \return Get spacegroup from GEMMI structure and return in
@@ -269,13 +267,7 @@ namespace clipper
     clipper::Cell format. */
   Cell GemmiStructure::get_cell() const
   {
-    //const gemmi::CGStructure &gemmi_structure = const_cast<GemmiStructure &>(* this);
-    //if (this->cell.is_crystal())
     return GEMMI::cell(this->cell);
-      //return Cell(Cell_descr(this->cell.a, this->cell.b, this->cell.c,
-      //                       this->cell.alpha, this->cell.beta, this->cell.gamma));
-    //else
-    //d  return Cell(); // null
   }
 
   /*! \return Experimental method (e.g. X-ray, EM, etc.). */
@@ -289,11 +281,6 @@ namespace clipper
   RTop_orth GemmiStructure::get_transform() const
   {
     return GEMMI::transform(origx);
-    // Mat33<> m(origx.mat[0][0], origx.mat[0][1], origx.mat[0][2],
-    //           origx.mat[1][0], origx.mat[1][1], origx.mat[1][2],
-    //           origx.mat[2][0], origx.mat[2][1], origx.mat[2][2]);
-    // Vec3<> v(origx.vec.at(0), origx.vec.at(1), origx.vec.at(2));
-    // return RTop_orth(m, v);
   }
 
   /*! Set transformation/origx to GEMMI Structure
@@ -301,13 +288,6 @@ namespace clipper
   void GemmiStructure::set_transform(const RTop_orth &rtop)
   {
     origx = GEMMI::transform(rtop);
-    // for (int i = 0; i < 3; i++)
-    //{
-    //   origx.mat[i][0] = rtop.rot()(i, 0);
-    //   origx.mat[i][1] = rtop.rot()(i, 1);
-    //   origx.mat[i][2] = rtop.rot()(i, 2);
-    //   origx.vec.at(i) = rtop.trn()[i];
-    // }
   }
 
   /*! \return Get resolution from GEMMI Structure. */
@@ -324,9 +304,8 @@ namespace clipper
   }
 
   /*! Conversion of gemmi CraProxy to Atom_list 
-    \param cra gemmi's CraProxy
-    \param natom number of atoms. */
-  GemmiAtom_list::GemmiAtom_list(gemmi::CGCraProxy cra, const int natom)
+    \param cra gemmi's CraProxy. */
+  GemmiAtom_list::GemmiAtom_list(gemmi::CraProxy cra)
   {
     for (auto a : cra)
       push_back(Atom(*((const GemmiAtom *)a.atom)));

@@ -15,44 +15,19 @@
 
 namespace clipper
 {
-  namespace gemmi
-  {
-    typedef ::gemmi::Structure CGStructure;
-    typedef ::gemmi::CoorFormat CGCoorFormat;
-
-    typedef ::gemmi::Model CGModel;
-    typedef ::gemmi::Chain CGChain;
-    typedef ::gemmi::Residue CGResidue;
-    typedef ::gemmi::Atom CGAtom;
-    typedef ::gemmi::CRA CGCRA;
-    typedef ::gemmi::CraProxy CGCraProxy;
-    typedef ::gemmi::ResidueId CGRId;
-
-    typedef ::gemmi::Model *PGModel;
-    typedef ::gemmi::Chain *PGChain;
-    typedef ::gemmi::Residue *PGResidue;
-    typedef ::gemmi::Atom *PGAtom;
-
-    typedef ::gemmi::PdbReadOptions CGPdbReadOptions;
-    typedef ::gemmi::PdbWriteOptions CGPdbWriteOptions;
-    typedef ::gemmi::MmcifOutputGroups CGMmcifOutputGroups;
-    //typedef ::gemmi::cif::Style CGCifStyle;
-    typedef ::gemmi::cif::WriteOptions CGCifWriteOptions;
-    typedef ::gemmi::cif::Document CGCifDocument;
-  }
-
+  
   //! GEMMI Atom object wrapper
   /*! This class is a trivial derivation of the corresponding GEMMI,
     providing access in terms of Clipper types. Thus, when you need
     such access, simply cast the GEMMI object reference to this type
     to access the additional functions. */
-  class GemmiAtom : public gemmi::CGAtom
+  class GemmiAtom : public gemmi::Atom
   {
   public:
     //! null constructor
     GemmiAtom() {}
     //! constructor: from GEMMI atom
-    GemmiAtom(const gemmi::CGAtom &a) : gemmi::CGAtom(a) {}
+    GemmiAtom(const gemmi::Atom &a) : gemmi::Atom(a) {}
 
     // standard atom properties
     String id() const;                            //!< Atom id, e.g. CA, CB, CH3
@@ -79,13 +54,13 @@ namespace clipper
       providing access in terms of Clipper types. Thus, when you need
       such access, simply cast the GEMMI object reference to this type
       to access the additional functions. */
-  class GemmiResidue : public gemmi::CGResidue
+  class GemmiResidue : public gemmi::Residue
   {
   public:
     //! null constructor
     GemmiResidue() {}
     //! constructor: from GEMMI residue
-    GemmiResidue(const gemmi::CGResidue &r) : gemmi::CGResidue(r) {}
+    GemmiResidue(const gemmi::Residue &r) : gemmi::Residue(r) {}
 
     // residue properties
     String type() const;               //!< Residue type
@@ -101,13 +76,13 @@ namespace clipper
     providing access in terms of Clipper types. Thus, when you need
     such access, simply cast the GEMMI object reference to this type
     to access the additional functions. */
-  class GemmiChain : public gemmi::CGChain
+  class GemmiChain : public gemmi::Chain
   {
   public:
     //! null constructor
     // GemmiChain() {}
     //! constructor: from GEMMI chain
-    GemmiChain(const gemmi::CGChain &c) : gemmi::CGChain(c) {}
+    GemmiChain(const gemmi::Chain &c) : gemmi::Chain(c) {}
 
     // chain properties
     String id() const;            //!< Chain id
@@ -119,13 +94,13 @@ namespace clipper
     providing access in terms of Clipper types. Thus, when you need
     such access, simply cast the GEMMI object reference to this type
     to access the additional functions. */
-  class GemmiModel : public gemmi::CGModel
+  class GemmiModel : public gemmi::Model
   {
   public:
     //! null constructor
     // GemmiModel() {}
     //! constructor: from GEMMI model
-    GemmiModel(const gemmi::CGModel &m) : gemmi::CGModel(m) {}
+    GemmiModel(const gemmi::Model &m) : gemmi::Model(m) {}
 
     // model properties
     String id() const;
@@ -137,16 +112,16 @@ namespace clipper
     providing access in terms of Clipper types. Thus, when you need
     such access, simply cast the Gemmi object reference to this type
     to access additional functions. */
-  class GemmiStructure : public gemmi::CGStructure
+  class GemmiStructure : public gemmi::Structure
   {
   public:
     //! null constructor
     GemmiStructure() {}
     //! copy constructor: from GEMMI Structure
-    GemmiStructure(const gemmi::CGStructure &s) : gemmi::CGStructure(s) {}
+    GemmiStructure(const gemmi::Structure &s) : gemmi::Structure(s) {}
 
     //! get IDs for model, chain, residue or atom
-    static String GetID_str(const String &model_name, const gemmi::CGCRA &cra, const String &entity);
+    static String GetID_str(const String &model_name, const gemmi::CRA &cra, const String &entity);
     //! get spacegroup and return in clipper::Spacegroup format
     Spacegroup spacegroup() const;
     //! get cell and return in clipper::Cell format
@@ -174,8 +149,8 @@ namespace clipper
   class GemmiAtom_list : public Atom_list
   {
   public:
-    //! constructor: from CRA
-    GemmiAtom_list(gemmi::CGCraProxy cra, const int natom);
+    //! constructor: from CraProxy
+    GemmiAtom_list(gemmi::CraProxy cra);
   };
 
 }

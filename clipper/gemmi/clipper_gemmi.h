@@ -6,7 +6,6 @@
 #ifndef CLIPPER_GEMMI
 #define CLIPPER_GEMMI
 
-#include "../ccp4/ccp4_mtz_io.h" // for datacolinf, datasetinf, crystalinf, hkldatacol
 #include "../core/hkl_datatypes.h"
 #include "../core/nxmap.h"
 #include "../core/xmap.h"
@@ -51,9 +50,6 @@ public:
   //! Convert Gemmi cell to Clipper cell
   static Cell cell(const gemmi::UnitCell &cell);
 
-  //! Get hierachy info from gemmi::Mtz
-  static void read_hierarchy(std::vector<CCP4MTZfile::crystalinf> &crystals, const gemmi::Mtz &mtzobj);
-
   //! Set HKL_info from Gemmi::Mtz
   static HKL_info as_HKL_info(const gemmi::Mtz &mtzobj, double tolerance = 1.e-8, const bool &generate = false);
   //! Conversion of Gemmi unit cell and spacegroup to HKL_info
@@ -64,7 +60,7 @@ public:
                               const std::vector<Miller> &miller_indices, double tolerance = 1.e-8);
 
   //! Import data from gemmi's Mtz object into HKL_data object.
-  static void import_hkl_data(HKL_data_base &cdata, const gemmi::Mtz &mtzobj, const String mtzpath);
+  static void import_hkl_data(HKL_data_base &cdata, const gemmi::Mtz &mtzobj, const String mtzpath, bool legacy=false);
 
   //! Conversion of F, sigF as HKL_data
   static HKL_data<data64::F_sigF> as_HKL_data_fsigf(HKL_info &hkl_info, const std::vector<Miller> &miller_indices,

@@ -182,6 +182,7 @@ ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_gemmi.cpp
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_mmdb.cpp
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_seq.cpp
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_utils.cpp
+${CMAKE_SOURCE_DIR}/clipper/minimol/test_minimol_gemmi.cpp
 )
 
 set(clipper-minimol_headers
@@ -193,5 +194,6 @@ ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_mmdb.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_seq.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_seq.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_utils.h
+${CMAKE_SOURCE_DIR}/clipper/minimol/test_minimol_gemmi.h
 )
 

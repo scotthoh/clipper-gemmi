@@ -85,7 +85,7 @@ namespace clipper {
     //! null constructor
     GEMMIfile() {}
     //! read structure from file
-    void read_file(const String &file, gemmi::CGPdbReadOptions pdb_read_options = gemmi::CGPdbReadOptions(), bool force_label=false);
+    void read_file(const String &file, gemmi::PdbReadOptions pdb_read_options = gemmi::PdbReadOptions(), bool force_label=false);
     //! write structure to file
     void write_file(const String &file, TYPE type = Default, QuickWriteOptions write_options = QuickWriteOptions());
     //! import MiniMol from Gemmi Structure.
@@ -98,10 +98,10 @@ namespace clipper {
     GemmiStructure get_gemmi_structure() const { return structure_; };
     //! set mmcif output groups, default: GemmiMmcifOutputGroups groups(true).
     /*! For more details, see MmcifOutputGroups in gemmi's to_mmcif.hpp. */
-    void set_mmcif_output_groups(::gemmi::MmcifOutputGroups groups) { groups_ = groups; };
+    void set_mmcif_output_groups(gemmi::MmcifOutputGroups groups) { groups_ = groups; };
     //! set pdb write options
     /*! For more details, see PdbWriteOptions in gemmi's to_pdb.hpp */
-    void set_pdb_write_options(::gemmi::PdbWriteOptions opts) { pdb_write_opts_ = opts; };
+    void set_pdb_write_options(gemmi::PdbWriteOptions opts) { pdb_write_opts_ = opts; };
     //! set spacegroup to structure
     void set_spacegroup(const Spacegroup &sg);
     //! set cell to structure
@@ -112,15 +112,15 @@ namespace clipper {
     Cell cell() const { return structure_.get_cell(); };
     //! set cif output style.
     /*! For more details, see WriteOptions in gemmi's to_cif.hpp */
-    void set_cif_style(gemmi::CGCifWriteOptions cif_write_style) {cif_write_style_ = cif_write_style;};
+    void set_cif_style(gemmi::cif::WriteOptions cif_write_style) {cif_write_style_ = cif_write_style;};
 
   private:
     GemmiStructure structure_;
-    gemmi::CGCifDocument st_doc_;
+    gemmi::cif::Document st_doc_;
     bool entities_set = false; 
-    gemmi::CGCifWriteOptions cif_write_style_ = gemmi::CGCifWriteOptions();
-    gemmi::CGMmcifOutputGroups groups_ = gemmi::CGMmcifOutputGroups(true);
-    gemmi::CGPdbWriteOptions pdb_write_opts_ = gemmi::CGPdbWriteOptions();
+    gemmi::cif::WriteOptions cif_write_style_ = gemmi::cif::WriteOptions();
+    gemmi::MmcifOutputGroups groups_ = gemmi::MmcifOutputGroups(true);
+    gemmi::PdbWriteOptions pdb_write_opts_ = gemmi::PdbWriteOptions();
   };
   
   

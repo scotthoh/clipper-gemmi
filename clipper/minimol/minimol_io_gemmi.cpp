@@ -42,7 +42,6 @@
 #include "minimol_io_gemmi.h"
 
 #include <gemmi/chemcomp_xyz.hpp>
-//#include <gemmi/polyheur.hpp>
 
 extern "C" {
 #include <string.h>
@@ -53,10 +52,10 @@ namespace clipper {
 
 // GEMMIfile
 // local types for referencing between GEMMI and MiniMol 
-struct GAtom {gemmi::PGAtom db; const MAtom *mm;};
-struct GMono {gemmi::PGResidue db; const MMonomer *mm; std::vector<GAtom> data;};
-struct GPoly {gemmi::PGChain db; const MPolymer *mm; std::vector<GMono> data;};
-struct GModl {gemmi::PGModel db; const MModel *mm; std::vector<GPoly> data;};
+struct GAtom {gemmi::Atom* db; const MAtom *mm;};
+struct GMono {gemmi::Residue* db; const MMonomer *mm; std::vector<GAtom> data;};
+struct GPoly {gemmi::Chain* db; const MPolymer *mm; std::vector<GMono> data;};
+struct GModl {gemmi::Model* db; const MModel *mm; std::vector<GPoly> data;};
 
 /*! This reads file of either PDB, mmCIF or mmjson format.
   Input file will be determined from extension. i.e. ".pdb", ".ent", ".cif", ".mmcif", ".json"
@@ -67,12 +66,11 @@ struct GModl {gemmi::PGModel db; const MModel *mm; std::vector<GPoly> data;};
   max_line_length=0, split_chain_on_ter=false, skip_remarks=false
   \endparblock
   \param force_label If true, label_seq in Mmccif will be assigned even if full sequence is not known*/
-void GEMMIfile::read_file(const String &file, gemmi::CGPdbReadOptions pdb_read_opts, bool force_label)
-// void GEMMIfile::read_file(const String &file, GemmiPdbReadOptions pdb_read_opts)
+void GEMMIfile::read_file(const String &file, gemmi::PdbReadOptions pdb_read_opts, bool force_label)
 {
-  gemmi::CGCoorFormat format = ::gemmi::coor_format_from_ext(file.trim().tail());
+  gemmi::CoorFormat format = ::gemmi::coor_format_from_ext(file.trim().tail());
   switch (format) {
-  case gemmi::CGCoorFormat::Pdb: {
+  case gemmi::CoorFormat::Pdb: {
     structure_ = ::gemmi::read_pdb(::gemmi::BasicInput(file), pdb_read_opts);
     // setup entities for mmcif format
     setup_entities(structure_);
@@ -82,22 +80,22 @@ void GEMMIfile::read_file(const String &file, gemmi::CGPdbReadOptions pdb_read_o
     assign_label_seq_id(structure_, force_label);
     break;
   }
-  case gemmi::CGCoorFormat::Mmcif: {
+  case gemmi::CoorFormat::Mmcif: {
     st_doc_.clear();
     structure_ = ::gemmi::make_structure(::gemmi::cif::read(::gemmi::BasicInput(file)), &st_doc_);
     break;
   }
-  case gemmi::CGCoorFormat::Mmjson: {
+  case gemmi::CoorFormat::Mmjson: {
     st_doc_.clear();
     structure_ = ::gemmi::make_structure(::gemmi::cif::read_mmjson(::gemmi::BasicInput(file)), &st_doc_);
     break;
   }
-  case gemmi::CGCoorFormat::ChemComp: {
+  case gemmi::CoorFormat::ChemComp: {
     st_doc_ = ::gemmi::cif::read(::gemmi::BasicInput(file));
     structure_ = ::gemmi::make_structure_from_chemcomp_doc(st_doc_);
   }
-  case gemmi::CGCoorFormat::Unknown:
-  case gemmi::CGCoorFormat::Detect: {
+  case gemmi::CoorFormat::Unknown:
+  case gemmi::CoorFormat::Detect: {
     String msg = "GEMMIfile: Error reading file, unknown format: " + file + "\n";
     Message::message(Message_fatal(msg));
   }
@@ -122,18 +120,18 @@ void GEMMIfile::write_file(const String &file, TYPE type, QuickWriteOptions writ
   auto intype = structure_.input_format;
   if (type == Default) {
     switch (intype) {
-    case gemmi::CGCoorFormat::Mmcif:
+    case gemmi::CoorFormat::Mmcif:
       type = types[1];
       break;
-    case gemmi::CGCoorFormat::Mmjson:
+    case gemmi::CoorFormat::Mmjson:
       type = types[2];
       break;
-    case gemmi::CGCoorFormat::Pdb:
+    case gemmi::CoorFormat::Pdb:
     default:
       type = types[0];
     }
   }
-  gemmi::CGCifDocument doc = st_doc_;
+  gemmi::cif::Document doc = st_doc_;
   ::gemmi::Ofstream os(file, &std::cout);
   switch (type) {
   case CIF: // write to mmcif/mmjson refer Gemmi's convert program
@@ -146,14 +144,14 @@ void GEMMIfile::write_file(const String &file, TYPE type, QuickWriteOptions writ
       doc.clear();
       doc.blocks.resize(1);
       ::gemmi::add_minimal_mmcif_data(structure_, doc.blocks[0]);
-      gemmi::CGMmcifOutputGroups groups(false);
+      gemmi::MmcifOutputGroups groups(false);
       groups.atoms = true;
       groups.group_pdb = true;
       ::gemmi::update_mmcif_block(structure_, doc.blocks[0], groups);
     } else {
       if (!write_options.UpdateCifDoc) { // UpdateCifDoc = false so update only atoms
         // this will overwrite set_mmcif_output_groups
-        gemmi::CGMmcifOutputGroups groups(false);
+        gemmi::MmcifOutputGroups groups(false);
         groups.atoms = true;
         groups.group_pdb = true;
         groups.auth_all = write_options.CifAllAuth;
@@ -177,7 +175,7 @@ void GEMMIfile::write_file(const String &file, TYPE type, QuickWriteOptions writ
   default: {
     ::gemmi::shorten_ccd_codes(structure_);
     if (write_options.Minimal)
-      pdb_write_opts_ = gemmi::CGPdbWriteOptions::minimal();
+      pdb_write_opts_ = gemmi::PdbWriteOptions::minimal();
     if (write_options.PdbShortTer)
       pdb_write_opts_.numbered_ter = false;
     if (write_options.PdbLinkR)
@@ -226,22 +224,22 @@ void GEMMIfile::import_minimol(MiniMol &minimol, const int model_num) {
   if (model_num > 0) // just in case
     model_nth = model_num - 1;
   std::string model_name = structure_.models[model_nth].name;
-  gemmi::PGModel p_mod = structure_.find_model(model_name);
+  gemmi::Model* p_mod = structure_.find_model(model_name);
   mol.set_property("StrucName", Property<String>(structure_.name));
-  gemmi::CGCRA cra;
+  gemmi::CRA cra;
 
   if (p_mod != NULL) {
     for (int c = 0; c < p_mod->chains.size(); c++) {
-      gemmi::PGChain p_chn = &p_mod->chains.at(c);
+      gemmi::Chain* p_chn = &p_mod->chains.at(c);
       if (p_chn != NULL) {
         // import the chain
         cra.chain = p_chn;
         MPolymer pol;
-        for (gemmi::CGResidue res : p_chn->whole()) {
+        for (gemmi::Residue res : p_chn->whole()) {
           // import residue
           cra.residue = &res;
           MMonomer mon;
-          for (gemmi::CGAtom a : res.children()) {
+          for (gemmi::Atom a : res.children()) {
             // import atoms
             cra.atom = &a;
             MAtom atm(Atom::null());
@@ -328,7 +326,7 @@ void GEMMIfile::export_minimol(MiniMol &minimol) {
   // make the GEMMI reference by CID if present
   if (gmod.mm->exists_property("CID")) {
     cid = dynamic_cast<const Property<String> &>(gmod.mm->get_property("CID")).value(); // + "/A/0/A";
-    std::pair<gemmi::PGModel, gemmi::CGCRA> PM_CRA = ::gemmi::Selection(cid.trim()).first(structure_);
+    std::pair<gemmi::Model*, gemmi::CRA> PM_CRA = ::gemmi::Selection(cid.trim()).first(structure_);
     if (PM_CRA.first != nullptr)
       gmod.db = PM_CRA.first;
 
@@ -381,7 +379,7 @@ void GEMMIfile::export_minimol(MiniMol &minimol) {
       GMono &gmon = gpol.data[r];
       if (gmon.db == NULL) // nullptr
       {
-        gemmi::CGRId rid;
+        gemmi::ResidueId rid;
         gpol.db->residues.emplace_back(rid);
         gmon.db = &gpol.db->residues.back();
       }
@@ -401,7 +399,7 @@ void GEMMIfile::export_minimol(MiniMol &minimol) {
         GAtom &gatm = gmon.data[a];
         if (gatm.db == NULL) // nullptr
         {
-          gemmi::CGAtom atm1;
+          gemmi::Atom atm1;
           gmon.db->atoms.emplace_back(atm1);
           gatm.db = &gmon.db->atoms.back();
         }

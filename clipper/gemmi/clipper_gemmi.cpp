@@ -26,7 +26,7 @@ const std::vector<String> extract_column_names(const String &assign, const int &
 /*! Convert Clipper Spacegroup to Gemmi SpaceGroup through symmetry operations
   search from the spacegroup given.
   \param spgr Clipper::Spacegroup object. */
-const ::gemmi::SpaceGroup * GEMMI::spacegroup(const Spacegroup &spgr) {
+const gemmi::SpaceGroup * GEMMI::spacegroup(const Spacegroup &spgr) {
   gemmi::GroupOps symops = gemmi::symops_from_hall(spgr.symbol_hall().c_str());
   return gemmi::find_spacegroup_by_ops(symops);
 }
@@ -43,7 +43,7 @@ Spacegroup GEMMI::spacegroup(const gemmi::SpaceGroup &spgr) {
 
 /*! Return Gemmi Transform from Clipper RTop_orth.
   \param rtop Rotation-translation operator. */
-::gemmi::Transform GEMMI::transform(const RTop_orth &rtop) {
+gemmi::Transform GEMMI::transform(const RTop_orth &rtop) {
   gemmi::Transform grtop; //identity mat33, zero vec3
   if (!rtop.rot().is_null()) {
     for (int i = 0; i < 3; i++) {
@@ -87,44 +87,6 @@ gemmi::UnitCell GEMMI::cell(const Cell &cell) {
   \param cell gemmi UnitCell object. */
 Cell GEMMI::cell(const gemmi::UnitCell &cell) {
   return Cell(Cell_descr(cell.a, cell.b, cell.c, cell.alpha, cell.beta, cell.gamma));
-}
-
-/*! Read hierachy from gemmi::Mtz. Get the list of column names/path.
-  \param crystals Vector of hierachy, from crystals, datasets to columns.
-  \param mtzobj gemmi Mtz object. */
-void GEMMI::read_hierarchy(std::vector<CCP4MTZfile::crystalinf> &crystals, const gemmi::Mtz &mtzobj) {
-  crystals.clear();
-  CCP4MTZfile::crystalinf newxtl;
-  CCP4MTZfile::datasetinf newset;
-  CCP4MTZfile::datacolinf newcol;
-  // std::set<String> crystname;
-  std::map<String, int> crystname;
-  int count = 0;
-  for (int s = 0; s < mtzobj.datasets.size(); s++) {
-    const gemmi::Mtz::Dataset *dataset = &mtzobj.datasets[s];
-    auto result = crystname.insert({String(dataset->crystal_name), count});
-    if (result.second) {
-      newxtl.crystal = MTZcrystal(String(dataset->crystal_name), String(dataset->project_name), cell(dataset->cell));
-      // if (newxtl.crystal.crystal_name != dataset->crystal_name)
-      crystals.push_back(newxtl);
-      count++;
-    }
-
-    newset.dataset = MTZdataset(dataset->dataset_name, dataset->wavelength);
-    int cryst_idx = crystname.find(dataset->crystal_name)->second;
-    crystals[cryst_idx].datasets.push_back(newset);
-    for (int c = 0; c < mtzobj.columns.size(); c++) {
-      const gemmi::Mtz::Column *col = &mtzobj.columns[c];
-      newcol.label = col->label;
-      newcol.type = String(&col->type, 1);
-      newcol.source = col->source;
-      newcol.grpname = "";
-      newcol.grptype = "";
-      newcol.grpposn = -1;
-      // gemmi not using Column group
-      crystals[cryst_idx].datasets.back().columns.push_back(newcol);
-    }
-  }
 }
 
 /*! Return initialised HKL_info using data from Gemmi::Mtz which
@@ -193,18 +155,23 @@ HKL_info GEMMI::as_HKL_info(const gemmi::UnitCell &unit_cell, const gemmi::Space
 
   \param cdata The HKL_data object into which data is to be imported.
   \param mtzobj Gemmi Mtz class where the data is store.
-  \param mtzpath The MTZ column names, as a path. See \ref MTZpaths for details. */
-void GEMMI::import_hkl_data(HKL_data_base &cdata, const gemmi::Mtz &mtzobj, const String mtzpath) {
+  \param mtzpath The MTZ column names, as a path. See \ref MTZpaths for details.
+  \param legacy Boolean to turn legacy column label mode.*/
+void GEMMI::import_hkl_data(HKL_data_base &cdata, const gemmi::Mtz &mtzobj, const String mtzpath, const bool legacy) {
   // check if HKL_data is initialised
   if (cdata.is_null())
     Message::message(Message_fatal("GEMMI: HKL_data is not initialised."));
   String colpath = mtzpath;
+  if ( legacy )
+    if ( colpath.find("/")==String::npos && colpath.find("[")==String::npos )
+      colpath = "/*/*/["+colpath+"]";
+  
   // add exported data columns to local list
   int ncols = cdata.data_size();
   size_t cols[ncols];
   std::vector<String> col_names = extract_column_names(colpath, ncols);
   std::vector<String> dat_names = cdata.data_names().split(" ");
-  std::vector<CCP4MTZfile::hkldatacol> newcols(ncols);
+  std::vector<ftype> scls(ncols, 1.0);
   String dataset_name = colpath.split("/")[1];
   // get the column indices
   for (int c = 0; c < ncols; c++) {
@@ -214,6 +181,8 @@ void GEMMI::import_hkl_data(HKL_data_base &cdata, const gemmi::Mtz &mtzobj, cons
       else
         cols[c] = mtzobj.column_with_label(col_names[c].c_str())->idx;
     }
+    if (dat_names[c] == "phi")
+      scls[c] = Util::rad2d(1.0);
   }
   // loop through nreflections,data
   xtype values[ncols];
@@ -223,7 +192,7 @@ void GEMMI::import_hkl_data(HKL_data_base &cdata, const gemmi::Mtz &mtzobj, cons
       // set to Nan unless readable and present
       Util::set_null(values[c]);
       if (!Util::is_nan(xtype(mtzobj.data[i + cols[c]])))
-        values[c] = xtype(mtzobj.data[i + cols[c]]);
+        values[c] = xtype(mtzobj.data[i + cols[c]]/scls[c]);
     }
     cdata.data_import(Hkl(mtzobj.get_hkl(i)), values);
   }
