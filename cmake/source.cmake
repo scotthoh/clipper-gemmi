@@ -131,13 +131,13 @@ ${CMAKE_SOURCE_DIR}/clipper/cns/cns_hkl_io.h
 ${CMAKE_SOURCE_DIR}/clipper/cns/cns_map_io.h
 )
 
-set(clipper-mmdb_sources
-${CMAKE_SOURCE_DIR}/clipper/mmdb/clipper_mmdb.cpp
-)
+#set(clipper-mmdb_sources
+#${CMAKE_SOURCE_DIR}/clipper/mmdb/clipper_mmdb.cpp
+#)
 
-set(clipper-mmdb_headers
-${CMAKE_SOURCE_DIR}/clipper/mmdb/clipper_mmdb.h
-)
+#set(clipper-mmdb_headers
+#${CMAKE_SOURCE_DIR}/clipper/mmdb/clipper_mmdb.h
+#)
 
 set(clipper-cif_sources
 ${CMAKE_SOURCE_DIR}/clipper/cif/cif_data_io.cpp
@@ -179,7 +179,7 @@ ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol.cpp
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_data.cpp
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_seq.cpp
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_gemmi.cpp
-${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_mmdb.cpp
+#${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_mmdb.cpp
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_seq.cpp
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_utils.cpp
 ${CMAKE_SOURCE_DIR}/clipper/minimol/test_minimol_gemmi.cpp
@@ -190,7 +190,7 @@ ${CMAKE_SOURCE_DIR}/clipper/minimol/container_minimol.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_data.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_gemmi.h
-${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_mmdb.h
+#${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_mmdb.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_io_seq.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_seq.h
 ${CMAKE_SOURCE_DIR}/clipper/minimol/minimol_utils.h

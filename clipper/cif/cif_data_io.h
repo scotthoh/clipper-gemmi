@@ -46,6 +46,7 @@
 #define CLIPPER_CIF_IO
 
 #include "../core/hkl_datatypes.h"
+#include <gemmi/cif.hpp>
 
 namespace clipper
 {
@@ -111,6 +112,7 @@ namespace clipper
     Cell cell_; 
     Resolution resolution_; 
     HKL_sampling hkl_sampling_;
+    gemmi::cif::Document doc_;
     int set_cell_symm_reso(std::string cif_file_name); 
     int set_cell_symm_reso_by_cif(std::string cif_file_name); 
     int set_cell_symm_reso_by_kludge(std::string cif_file_name); 

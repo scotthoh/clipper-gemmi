@@ -1,4 +1,3 @@
-
 /* cif_io.cpp: class file for reflection data  cif importer               */
 //c Copyright (C) 2000-2006 Paul Emsley, Kevin Cowtan and University of York
 //L
@@ -50,16 +49,51 @@ extern "C" {
 }
 #include <vector>
 #include <fstream>
-
-#ifndef  __MMDB_MMCIF__
-#include <mmdb2/mmdb_mmcif_.h>
-#undef strchr
-#endif
+#include <gemmi/cif.hpp>
 
 
 namespace clipper {
 
+/*! Get values into array from specified columns.
+  \param value array of values to set
+  \param datasize number of elements in array
+  \param p_item pointer to gemmi::cif::Item
+  \param irow row position of data
+  \param icol array of column positions of data
+  \return The value >0 if str is null, ? or .;0 otherwise. */
+int get_real(xtype value[], const int datasize, const gemmi::cif::Item *p_item, const int irow, const int icol[]) {
+  int ret_val = 0;
+  for (int i = 0; i < datasize; i++) {
+    value[i] = 0.0;
+    std::string strval = p_item->loop.val(irow, icol[i]);
+    if (!gemmi::cif::is_null(strval)) {
+      value[i] = clipper::String(strval).f64();
+    } else {
+      ret_val += 1;
+    }
+  }
+  return ret_val;
+}
 
+/*! Get hkl index from cif table.
+	\param hkl HKL index to set
+	\param p_item pointer to gemmi::cif::Item
+	\param irow row position of data
+	\param icol array of column positions for H,K,L
+	\return The value >0 if str is null, ? or .;0 otherwise. */
+int get_hkl(HKL &hkl, const gemmi::cif::Item *p_item, const int irow, const int icol[]){
+  int ret_val =0;
+  for (int i=0;i<3;i++){
+    hkl[i] = 0;
+    std::string strval = p_item->loop.val(irow, icol[i]);
+    if(!gemmi::cif::is_null(strval)) {
+      hkl[i] = clipper::String(strval).i();
+    } else {
+      ret_val += 1;
+    }
+  }
+  return ret_val;
+}
 
 /*! Constructing an CIFfile does nothing except flag the object as not
   attached to any file for either input or output */
@@ -137,10 +171,16 @@ void CIFfile::open_read( const String filename_in )
   
   filename = filename_in;
 
-  FILE* cif = fopen( filename.c_str(), "r" );
-  if ( cif == NULL )
-    Message::message( Message_fatal( "CIFfile: open_read  - Could not read: "+filename ) );
-  fclose( cif );
+  try{
+    doc_.clear();
+    doc_ = gemmi::cif::read_file(filename.c_str());
+  }
+  catch (const std::exception &err) {
+    std::string mess = "CIFfile: open_read  - : \n ";
+    mess += err.what();
+    mess += " \n";
+    Message::message( Message_fatal(mess) );
+  }
 
   mode = READ;
   filename = filename_in;
@@ -155,11 +195,19 @@ void CIFfile::open_read( const String filename_in )
   }
 }
 
-bool
-CIFfile::contains_phases_p() const {
-
-   return 0; 
-} 
+/*! Return true if cif file contains phases. */
+bool CIFfile::contains_phases_p() const {
+  int ret_val = 0;
+  if (!doc_.blocks.empty()){
+    for(size_t i = 0; i<doc_.blocks.size(); i++) {
+      if (doc_.blocks[i].has_tag("_refln.phase_calc")) { 
+        ret_val = 1;
+        break; // should we check all? or just one block?
+      }
+    }
+  }
+  return ret_val;
+}
 
 
 /*! Close the file after reading. This command also actually fills in
@@ -181,9 +229,8 @@ CIFfile::contains_phases_p() const {
   Note to self: how about we make a function of a CIFfile that says
   whether or not it contains phases...
 
-  Note to self: this text need to be properly marked up in doxygen format.
+  Note to self: th-is text need to be properly marked up in doxygen format.
 */
-
 void CIFfile::close_read()
 {
   if ( mode != READ )
@@ -201,232 +248,224 @@ void CIFfile::close_read()
 
   int ret_val = 0;
   int n_calc_data = 0; 
-  ::mmdb::InitMatType(); 
 
   // read the data from the CIF file
-
   // stat cif_file_name.c_str() here, make sure it exists, is readable.
 
-  ::mmdb::mmcif::File ciffile; 
-  int ierr = ciffile.ReadMMCIFFile(filename.c_str());
+  int ierr;
   int ierr_f;
   int ierr_calc;
   int ierr_rfree_flag;
   int ierr_anom_flag;
   int ierr_intensity_flag;
   int ierr_ABCD_flag;
-      
-  if (ierr!=::mmdb::mmcif::CIFRC_Ok) { 
+  
+  if (!doc_.blocks.empty()) { 
+    for (gemmi::cif::Block &data : doc_.blocks) { //loop through data/blocks
+      if (!data.has_mmcif_category("_refln.")) {
+        String warn = "CIFfile: close_read  - :\n ";
+        warn += data.name + " : cannot find _refln. block.";
+        Message::message(Message_warn(warn));
+        continue;
+      }
+      ret_val = 1; // success:
+      HKL hkl;
+      int hkl_pos[3] = {-1,-1,-1};
+      int rfree_pos;
+      int FsigF_pos[2], FPhi_pos[2], anomF_pos[4];
+      int anomD_pos[2], IsigI_pos[2], anomI_pos[4], ABCD_pos[4];
+      xtype x1[2], x_anom[5], x_hl[4];
+      const gemmi::cif::Item *p_item = data.find_loop_item("_refln.index_h");
 
-    std::string mess = "CIFfile: close_read  - Could not read: ";
-    mess += filename.c_str();
-    mess += " Dirty mmCIF file? ";
-    Message::message( Message_fatal( mess )); 
-  } else { 
+      if (p_item->loop.length() != 0) { 
+        // get column positions for hkl and data needed
+        if (data.has_tag("_refln.index_h")) {
+          hkl_pos[0] = p_item->loop.find_tag("_refln.index_h");
+          hkl_pos[1] = p_item->loop.find_tag("_refln.index_k");
+          hkl_pos[2] = p_item->loop.find_tag("_refln.index_l");
+        }
+        if (f_sigf_i) {
+          FsigF_pos[0] = -1;
+          if (data.has_tag("_refln.F_meas") &&
+              data.has_tag("_refln.F_meas_sigma")) {
+            FsigF_pos[0] = p_item->loop.find_tag("_refln.F_meas");
+            FsigF_pos[1] = p_item->loop.find_tag("_refln.F_meas_sigma");
+          } else if (f_sigf_i && data.has_tag("_refln.F_meas_au") &&
+                     data.has_tag("_refln.F_meas_sigma_au")) {
+            FsigF_pos[0] = p_item->loop.find_tag("_refln.F_meas_au");
+            FsigF_pos[1] = p_item->loop.find_tag("_refln.F_meas_sigma_au");
+          }
+        }
+        if (f_phi_i) {
+          FPhi_pos[0] = -1;
+          if (data.has_tag("_refln.F_calc") &&
+              data.has_tag("_refln.phase_calc")) {
+            FPhi_pos[0] = p_item->loop.find_tag("_refln.F_calc");
+            FPhi_pos[1] = p_item->loop.find_tag("_refln.phase_calc");
+          } else if (f_phi_i && data.has_tag("_refln.F_calc_au") &&
+                     data.has_tag("_refln.phase_calc")) {
+            FPhi_pos[0] = p_item->loop.find_tag("_refln.F_calc_au");
+            FPhi_pos[1] = p_item->loop.find_tag("_refln.phase_calc");
+          }
+        }
+        if (rfree_i) {
+          rfree_pos = -1;
+          if (data.has_tag("_refln.status"))
+          rfree_pos = p_item->loop.find_tag("_refln.status");
+        }
 
-    for(int i=0; i<ciffile.GetNofData(); i++) {  
-	 
-      ::mmdb::mmcif::PData data = ciffile.GetCIFData(i);
-	 
-      for (int icat=0; icat<data->GetNumberOfCategories(); icat++) { 
-
-	::mmdb::mmcif::PCategory cat = data->GetCategory(icat);
-
-	std::string cat_name(cat->GetCategoryName()); 
-
-	::mmdb::mmcif::PLoop mmCIFLoop = data->GetLoop(cat_name.c_str());
-
-	if (mmCIFLoop == NULL) { 
-
-	} else {
-
-	  if (cat_name == "_refln") { 
-
-	    // success:
-	    ret_val = 1;
-
-	    int h,k,l;
-	    ::mmdb::realtype F, sigF, Fcalc, phi, F_plus, sigF_plus, F_minus, sigF_minus, I, sigI;
-	    ::mmdb::realtype I_plus, sigI_plus, I_minus, sigI_minus, D, D_sigma;
-	    ::mmdb::realtype HLA, HLB, HLC, HLD;
-	    xtype x1[2], x_anom[5], x_hl[4];
-
-	    for (int j=0; j<mmCIFLoop->GetLoopLength(); j++) {
-
-	      // Note: modification of references
-	      // 
-	      ierr  = mmCIFLoop->GetInteger(h, "index_h", j); 
-	      ierr += mmCIFLoop->GetInteger(k, "index_k", j); 
-	      ierr += mmCIFLoop->GetInteger(l, "index_l", j);
-	      if ( !ierr ) {
-
-		// Measured data can be given using F_meas or
-		// F_meas_au (arbitary units).  So lets try to
-		// read a F_meas first then try F_meas_au if that
-		// fails.
-
-		ierr_f = mmCIFLoop->GetReal(   F, "F_meas", j);
-		ierr_f += mmCIFLoop->GetReal(sigF, "F_meas_sigma", j);
-		if (ierr_f) {
-		  ierr_f  = mmCIFLoop->GetReal(   F, "F_meas_au", j);
-		  ierr_f += mmCIFLoop->GetReal(sigF, "F_meas_sigma_au", j);
-		}
-		if ( F < -0.9e10 || sigF < -0.9e10 ) ierr_f++;
-
-		ierr_calc = mmCIFLoop->GetReal(Fcalc, "F_calc", j);
-		if ( ierr_calc ) {
-		  ierr_calc =  mmCIFLoop->GetReal(Fcalc, "F_calc_au", j);
-		}
-		ierr_calc += mmCIFLoop->GetReal(phi, "phase_calc", j);
-		if ( Fcalc < -0.9e10 || phi < -0.9e10 ) ierr_calc++;
-
-		if ( !ierr_f ) {
-		  if ( f_sigf_i != NULL ) if ( !f_sigf_i->is_null() ) { 
-		    x1[0] = F;
-		    x1[1] = sigF; 
-		    f_sigf_i->data_import( HKL(h,k,l), x1 );
-		  }
-		}
-
-		if (! ierr_calc ) {
-		   if ( f_phi_i  != NULL )
-		      if ( !f_phi_i->is_null() ) { 
-			 x1[0] = Fcalc;
-			 x1[1] = clipper::Util::d2rad(phi);
-			 f_phi_i->data_import( HKL(h,k,l), x1);
-			 n_calc_data++;
-		      }
-		}
-
-		// RFree flag
-		if (rfree_i) { 
-		   char *s = mmCIFLoop->GetString("status", j, ierr_rfree_flag);
-		   if (! ierr_rfree_flag) { 
-		      x1[0] = -1; 
-		      if (s) {
-			 // std::cout << "read status :" << s << ":" << std::endl;
-			 // could be also "x"; not observed, just listed
-			 if (! strncmp(s, "o", 1)) {
-			    x1[0] = 1;
-			 } else {
-			    if (! strncmp(s, "f", 1)) {
-			       x1[0] = 0;
-			    }
-			 }
-		      }
-		      // 
-		      // Every output reflection gets one of these, even if
-		      // it is set to -1.  Is that the correct thing to do?
-		      // I have looked at over 200 recent sf mmCIFs and if
-		      // the contain conventional data then they all have
-		      // the status flag.
-		      //
-		      // However, SFS from EM data do not
-		      //
-		      rfree_i->data_import( HKL(h,k,l), x1);
-		   }
-		}
-
-		
-		// Anomalous Fs
-		//
-		// (only add if all 4 F+ and sigF+ and F- and sigF- are
-		// present), that is, don't add an F if a sigma is
-		// missing.
-		//
-		ierr_anom_flag = mmCIFLoop->GetReal(F_plus, "pdbx_F_plus", j);
-		if (! ierr_anom_flag) {
-		   ierr_anom_flag = mmCIFLoop->GetReal(sigF_plus, "pdbx_F_plus_sigma", j);
-		   if (! ierr_anom_flag) {
-		      ierr_anom_flag = mmCIFLoop->GetReal(F_minus, "pdbx_F_minus", j);
-		      if (! ierr_anom_flag) {
-			 ierr_anom_flag = mmCIFLoop->GetReal(sigF_minus, "pdbx_F_minus_sigma", j);
-			 if (! ierr_anom_flag) {
-			    x_anom[0] = F_plus;
-			    x_anom[1] = sigF_plus;
-			    x_anom[2] = F_minus;
-			    x_anom[3] = sigF_minus;
-			    x_anom[4] = 1.0; // no covarience in cif files, hack a value.
-			    if (f_sigf_ano_i)
-			       f_sigf_ano_i->data_import(HKL(h,k,l), x_anom);
-			 }
-		      }
-		   }
-		}
-
-		// Anomalous Differences (on F, presumably)
-		// 
-		ierr_anom_flag = mmCIFLoop->GetReal(D, "pdbx_anom_difference", j);
-		if (! ierr_anom_flag) {
-		   ierr_anom_flag = mmCIFLoop->GetReal(D, "pdbx_anom_difference_sigma", j);
-		   if (! ierr_anom_flag) {
-		      x1[0] = D;
-		      x1[1] = D_sigma;
-		      if (d_sigd_i)
-			 d_sigd_i->data_import(HKL(h,k,l), x1);
-		   }
-		}
-
-
-		// Intensities
-		//
-		ierr_intensity_flag = mmCIFLoop->GetReal(I, "intensity_meas", j);
-		if (! ierr_intensity_flag) {
-		   ierr_intensity_flag = mmCIFLoop->GetReal(sigI, "intensity_sigma", j);
-		   if (! ierr_intensity_flag) {
-		      x1[0] = I;
-		      x1[1] = sigI;
-		      if (I_sigI_i)
-			 I_sigI_i->data_import(HKL(h,k,l), x1);
-		   }
-		}
-
-		// Anomalous Intensities
-		//
-		ierr_intensity_flag = mmCIFLoop->GetReal(I_plus, "pdbx_I_plus", j);
-		if (! ierr_intensity_flag) {
-		   ierr_intensity_flag = mmCIFLoop->GetReal(I_plus, "pdbx_I_plus_sigma", j);
-		   if (! ierr_intensity_flag) {
-		      ierr_intensity_flag = mmCIFLoop->GetReal(I_minus, "pdbx_I_minus", j);
-		      if (! ierr_intensity_flag) {
-			 ierr_intensity_flag = mmCIFLoop->GetReal(I_minus, "pdbx_I_minus_sigma", j);
-			 if (! ierr_intensity_flag) {
-			    x_anom[0] = I_plus;
-			    x_anom[1] = sigI_plus;
-			    x_anom[2] = I_minus;
-			    x_anom[3] = sigI_minus;
-			    x_anom[4] = 1.0; // no covarience in cif files, hack a value.
-			    if (I_sigI_ano_i)
-			       I_sigI_ano_i->data_import(HKL(h,k,l), x_anom);
-			 }
-		      }
-		   }
-		}
-
-		// Hendrickson Lattman coefficients (not many files have these)
-		//
-		ierr_ABCD_flag = mmCIFLoop->GetReal(HLA, "pdbx_HLA", j);
-		if (! ierr_ABCD_flag) {
-		   ierr_ABCD_flag = mmCIFLoop->GetReal(HLB, "pdbx_HLB", j);
-		   if (! ierr_ABCD_flag) {
-		      ierr_ABCD_flag = mmCIFLoop->GetReal(HLC, "pdbx_HLC", j);
-		      if (! ierr_ABCD_flag) {
-			 ierr_ABCD_flag = mmCIFLoop->GetReal(HLD, "pdbx_HLD", j);
-			 if (! ierr_ABCD_flag) {
-			    x_hl[0] = HLA;
-			    x_hl[1] = HLB;
-			    x_hl[2] = HLC;
-			    x_hl[3] = HLD;
-			    if (ABCD_i)
-			       ABCD_i->data_import(HKL(h,k,l), x_hl);
-			 }
-		      }
-		   }
-		} 
-	      }
-	    }
-	  }
-	}
+        if (f_sigf_ano_i) {
+          anomF_pos[0] = -1;
+          if (data.has_tag("_refln.pdbx_F_plus") &&
+              data.has_tag("_refln.pdbx_F_plus_sigma") &&
+              data.has_tag("_refln.pdbx_F_minus") &&
+              data.has_tag("_refln.pdbx_F_minus_sigma")) {
+            anomF_pos[0] = p_item->loop.find_tag("_refln.pdbx_F_plus");
+            anomF_pos[1] = p_item->loop.find_tag("_refln.pdbx_F_plus_sigma");
+            anomF_pos[2] = p_item->loop.find_tag("_refln.pdbx_F_minus");
+            anomF_pos[3] = p_item->loop.find_tag("_refln.pdbx_F_minus_sigma");
+          }
+        }
+        if (d_sigd_i) {
+          anomD_pos[0] = -1;
+          if (data.has_tag("_refln.pdbx_anom_difference") &&
+              data.has_tag("_refln.pdbx_anom_difference_sigma")) {
+            anomD_pos[0] = p_item->loop.find_tag("_refln.pdbx_anom_difference");
+            anomD_pos[1] =
+                p_item->loop.find_tag("_refln.pdbx_anom_difference_sigma");
+          }
+        }
+        if (I_sigI_i) {
+          IsigI_pos[0] = -1;
+          if (data.has_tag("_refln.intensity_meas") &&
+              data.has_tag("_refln.intensity_sigma")) {
+            IsigI_pos[0] = p_item->loop.find_tag("_refln.intensity_meas");
+            IsigI_pos[1] = p_item->loop.find_tag("_refln.intensity_sigma");
+          }
+        }
+        if (I_sigI_ano_i) {
+          anomI_pos[0] = -1;
+          if (data.has_tag("_refln.pdbx_I_plus") &&
+              data.has_tag("_refln.pdbx_I_plus_sigma") &&
+              data.has_tag("_refln.pdbx_I_minus") &&
+              data.has_tag("_refln.pdbx_I_minus_sigma")) {
+            anomI_pos[0] = p_item->loop.find_tag("_refln.pdbx_I_plus");
+            anomI_pos[1] = p_item->loop.find_tag("_refln.pdbx_I_plus_sigma");
+            anomI_pos[2] = p_item->loop.find_tag("_refln.pdbx_I_minus");
+            anomI_pos[3] = p_item->loop.find_tag("_refln.pdbx_I_minus_sigma");
+          }
+        }
+        if (ABCD_i) {
+          ABCD_pos[0] = -1;
+          if (data.has_tag("_refln.pdbx_HLA") &&
+              data.has_tag("_refln.pdbx_HLB") &&
+              data.has_tag("_refln.pdbx_HLC") &&
+              data.has_tag("_refln.pdbx_HLD")) {
+            ABCD_pos[0] = p_item->loop.find_tag("_refln.pdbx_HLA");
+            ABCD_pos[1] = p_item->loop.find_tag("_refln.pdbx_HLB");
+            ABCD_pos[2] = p_item->loop.find_tag("_refln.pdbx_HLC");
+            ABCD_pos[3] = p_item->loop.find_tag("_refln.pdbx_HLD");
+          }
+        }
+        for (size_t j = 0; j < p_item->loop.length(); j++) {
+          // Get HKL indices
+          ierr = get_hkl(hkl, p_item, j, hkl_pos);
+          if (!ierr) {
+            // get F_meas or F_meas_au (arbitrary units)
+            if (f_sigf_i != NULL && FsigF_pos[0] != -1) {
+              ierr_f =
+                  get_real(x1, f_sigf_i->data_size(), p_item, j, FsigF_pos);
+              if (x1[0] < -0.9e10 || x1[1] < -0.9e10) ierr_f++;
+              if (!ierr_f) {
+                if (!f_sigf_i->is_null()) {
+                  f_sigf_i->data_import(hkl, x1);
+                }
+              }
+            }
+            // get F_calc and Phi
+            if (f_phi_i != NULL && FPhi_pos[0] != -1) {
+              ierr_calc =
+                  get_real(x1, f_phi_i->data_size(), p_item, j, FPhi_pos);
+              if (x1[0] < -0.9e10 || x1[1] < -0.9e10) ierr_calc++;
+              if (!ierr_calc) {
+                if (!f_phi_i->is_null()) {
+                  f_phi_i->data_import(hkl, x1);
+                  n_calc_data++;
+                }
+              }
+            }
+            // get RFree flag
+            if (rfree_i != NULL && rfree_pos != -1) {
+              char s = p_item->loop.val(j, rfree_pos)[0];
+              x1[0] = -1;
+              // could be also "x"; not observed, just listed
+              if (s == 'o')
+                x1[0] = 1;
+              else if (s == 'f')
+                x1[0] = 0;
+              //
+              // Every output reflection gets one of these, even if
+              // it is set to -1.  Is that the correct thing to do?
+              // I have looked at over 200 recent sf mmCIFs and if
+              // the contain conventional data then they all have
+              // the status flag.
+              //
+              // However, SFS from EM data do not
+              //
+              rfree_i->data_import(hkl, x1);
+            }
+            // Anomalous Fs
+            //  (only add if all 4 F+ and sigF+ and F- and sigF- are
+            //  present), that is, don't add an F if a sigma is
+            //  missing.
+            if (f_sigf_ano_i != NULL && anomF_pos[0] != -1) {
+              ierr_anom_flag = get_real(x_anom, f_sigf_ano_i->data_size() - 1,
+                                        p_item, j, anomF_pos);
+              if (!ierr_anom_flag) {
+                x_anom[4] = 1.0; // no covarience in cif files, hack a value.
+                if (!f_sigf_ano_i->is_null())
+                  f_sigf_ano_i->data_import(hkl, x_anom);
+              }
+            }
+            // Anomalous Differences (on F, presumably)
+            if (d_sigd_i != NULL && anomD_pos[0] != -1) {
+              ierr_anom_flag =
+                  get_real(x1, d_sigd_i->data_size(), p_item, j, anomD_pos);
+              if (!ierr_anom_flag) {
+                if (!d_sigd_i->is_null())
+                  d_sigd_i->data_import(hkl, x1);
+              }
+            }
+            // Intensities
+            if (I_sigI_i != NULL && IsigI_pos[0] != -1) {
+              ierr_intensity_flag =
+                  get_real(x1, I_sigI_i->data_size(), p_item, j, IsigI_pos);
+              if (!ierr_intensity_flag) {
+                if (!I_sigI_i->is_null())
+                  I_sigI_i->data_import(hkl, x1);
+              }
+            }
+            // Anomalous Intensities
+            if (I_sigI_ano_i != NULL && anomI_pos[0] != -1) {
+              ierr_intensity_flag = get_real(
+                  x_anom, I_sigI_ano_i->data_size() - 1, p_item, j, anomI_pos);
+              if (!ierr_intensity_flag) {
+                x_anom[4] = 1.0; // no covariance in cif files, hack a value.
+                if (!I_sigI_ano_i->is_null())
+                  I_sigI_ano_i->data_import(hkl, x_anom);
+              }
+            }
+            // Hendrickson Lattman coefficients (not many files have these)
+            if (ABCD_i != NULL && ABCD_pos[0] != -1) {
+              ierr_ABCD_flag =
+                  get_real(x_hl, ABCD_i->data_size(), p_item, j, ABCD_pos);
+              if (!ierr_ABCD_flag) {
+                if (!ABCD_i->is_null())
+                  ABCD_i->data_import(hkl, x_hl);
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -454,6 +493,7 @@ const HKL_sampling& CIFfile::hkl_sampling() const
   must be supplied, which will be used to determine the resultion.
   The result is the resolution determined by the most extreme
   reflection in the file.
+  \param cell Cell object
   \return The resolution. */
 Resolution CIFfile::resolution( const Cell& cell ) const
 {
@@ -462,47 +502,27 @@ Resolution CIFfile::resolution( const Cell& cell ) const
 
   HKL hkl;
   int h, k, l;
-  //char line[240];
   ftype slim = 0.0;
-  FILE* cif = fopen( filename.c_str(), "r" );
-  if ( cif == NULL )
-    Message::message( Message_fatal( "CIFfile: resolution  - Could not read: "+filename ) );
-  ::mmdb::mmcif::File ciffile; 
-  int ierr = ciffile.ReadMMCIFFile(filename.c_str()); 
-  if (ierr!=::mmdb::mmcif::CIFRC_Ok) { 
-    std::string mess = "CIFfile: resolution  - Could not read: ";
-    mess += filename.c_str();
-    mess += ". Dirty mmCIF file? "; 
-    Message::message( Message_warn( mess )); 
-  } else { // read the reflections from the phs
-    for(int i=0; i<ciffile.GetNofData(); i++) {  
-      ::mmdb::mmcif::PData data = ciffile.GetCIFData(i);
-      for (int icat=0; icat<data->GetNumberOfCategories(); icat++) { 
-	::mmdb::mmcif::PCategory cat = data->GetCategory(icat);
-	std::string cat_name(cat->GetCategoryName()); 
-	::mmdb::mmcif::PLoop mmCIFLoop = data->GetLoop( (char *) cat_name.c_str() );
-	if (mmCIFLoop == NULL) { 
-	} else {
-	  if (cat_name == "_refln") { 
-	    for (int j=0; j<mmCIFLoop->GetLoopLength(); j++) { 
-	      ierr  = mmCIFLoop->GetInteger(h, "index_h", j); 
-	      ierr += mmCIFLoop->GetInteger(k, "index_k", j); 
-	      ierr += mmCIFLoop->GetInteger(l, "index_l", j);
-	      if (!ierr) {
-		hkl = HKL( h, k, l );
-		slim = Util::max( slim, hkl.invresolsq(cell) );
-	      }
+  if (!doc_.blocks.empty()) { 
+    int ierr;
+    for(size_t i = 0; i<doc_.blocks.size(); i++) {
+      if (doc_.blocks[i].has_tag("_refln.index_h")) { 
+        const gemmi::cif::Item *p_item = doc_.blocks[i].find_loop_item("_refln.index_h");
+        int hklcol[3] = {0,1,2};
+        hklcol[0] = p_item->loop.find_tag("_refln.index_h"); 
+	      hklcol[1] = p_item->loop.find_tag("_refln.index_k"); 
+	      hklcol[2] = p_item->loop.find_tag("_refln.index_l");
+	      for (size_t r = 0; r < p_item->loop.length(); r++ ) {
+          ierr = get_hkl(hkl, p_item, r, hklcol);
+          if (!ierr) {
+		        slim = Util::max( slim, hkl.invresolsq(cell) );
+	        } 
+        }
 	    }
 	  }
 	}
-      }
-    }
-  }
-  fclose( cif );
-
   return Resolution( 1.0/sqrt(slim) );
 }
-
 
 /*! Import the list of reflection HKLs from an CIF file into an
   HKL_info object. At the start of the routine try to determine the
@@ -515,121 +535,81 @@ Resolution CIFfile::resolution( const Cell& cell ) const
   \param target The HKL_info object to be initialised. */
 void CIFfile::import_hkl_info( HKL_info& target )
 {
-   std::vector<HKL> hkls;
-   //int h, k, l;
-
+  std::vector<HKL> hkls;
   if ( mode != READ )
     Message::message( Message_fatal( "CIFfile: import_hkl_info - no file open for read"+filename ) );
 
   std::string new_str = filename; 
-
-  int icell = set_cell_symm_reso(new_str);
+  int icell = 0;
+  if ( clipper_cell_set_flag && clipper_symm_set_flag ){
+    icell = 1;
+  } else { int icell = set_cell_symm_reso(new_str); }
   
   if (! icell) {
-     if (! clipper_cell_set_flag)
-	Message::message( Message_fatal( "CIFfile: import_hkl_info - error getting cell "+filename ) );
+    if (! clipper_cell_set_flag)
+	    Message::message( Message_fatal( "CIFfile: import_hkl_info - error getting cell "+filename ) );
      
-     if (! clipper_symm_set_flag)
-	Message::message( Message_fatal( "CIFfile: import_hkl_info - error getting symm "+filename ) );
+    if (! clipper_symm_set_flag)
+	    Message::message( Message_fatal( "CIFfile: import_hkl_info - error getting symm "+filename ) );
   } else {
-     // we have the cell and symmetry, proceed.
-
-     if (! clipper_reso_set_flag)
-	resolution_.init(2.0); // just a dummy value, we will set it to
-			      // the right value once we know it after
-			      // we have read in all the reflection
-			      // hkls.  If clipper_reso_set_flag *was*
-			      // set, then we have initialised
-			      // resolution already.
+    // we have the cell and symmetry, proceed.
+    if (! clipper_reso_set_flag)
+	    resolution_.init(2.0); // just a dummy value, we will set it to
+			// the right value once we know it after
+			// we have read in all the reflection
+			// hkls.  If clipper_reso_set_flag *was*
+			// set, then we have initialised
+			// resolution already.
        
-     // import any missing params
-     target.init( space_group, cell_, resolution_ );
+    // import any missing params
+    target.init( space_group, cell_, resolution_ );
 
-     FILE* cif = fopen( filename.c_str(), "r" );
-     if ( cif == NULL )
-	Message::message( Message_fatal( "CIFfile: import_hkl_info - Could not read: "+filename ) );
-     fclose ( cif );
-     // read the reflections from the cif
-     ftype slim = target.resolution().invresolsq_limit();
-     ftype tmp_lim = 0.0; 
+    // read the reflections from the cif
+    ftype slim = target.resolution().invresolsq_limit();
+    ftype tmp_lim = 0.0; 
   
-     ::mmdb::mmcif::File ciffile; 
-     int ierr = ciffile.ReadMMCIFFile(filename.c_str()); 
-      
-     if (ierr!=::mmdb::mmcif::CIFRC_Ok) { 
-     
-	std::string mess = "CIFfile: import_hkl_data  - Could not read: ";
-	mess += filename.c_str();
-	mess += ". Dirty mmCIF file? "; 
-	Message::message( Message_fatal( mess )); 
-
-     } else { 
-
-	for(int i=0; i<ciffile.GetNofData(); i++) {  
-	 
-	   ::mmdb::mmcif::PData data = ciffile.GetCIFData(i);
-	 
-	   for (int icat=0; icat<data->GetNumberOfCategories(); icat++) { 
-
-	      ::mmdb::mmcif::PCategory cat = data->GetCategory(icat);
-
-	      std::string cat_name(cat->GetCategoryName()); 
-
-	      ::mmdb::mmcif::PLoop mmCIFLoop = data->GetLoop(cat_name.c_str() );
-
-	      if (mmCIFLoop) {
-
-		 if (cat_name == "_refln") { 
-
-		    int h,k,l;
-
-		    for (int j=0; j<mmCIFLoop->GetLoopLength(); j++) { 
-
-		       // ("modification of reference")
-		       // 
-		       ierr  = mmCIFLoop->GetInteger(h, "index_h", j); 
-		       ierr += mmCIFLoop->GetInteger(k, "index_k", j); 
-		       ierr += mmCIFLoop->GetInteger(l, "index_l", j);
-
-		       if (!ierr) {
-			  HKL hkl(h,k,l);
-			  if (clipper_reso_set_flag) {
-			     if ( hkl.invresolsq(target.cell()) < slim ) {
-				hkls.push_back(hkl);
-			     }
-			  } else {
-			     // resolution had not been set
-			     hkls.push_back(hkl);
-			     if (hkl.invresolsq(target.cell()) > tmp_lim) {
-				tmp_lim = hkl.invresolsq(target.cell());
-			     }
-			  } 
-		       }
-		    }
-		 } 
-	      }
-	   }
-	}
-     }
-     // ::mmdb::mmcif::File is closed on destruction of ciffile.
-
-     // Now we can initialise target properly, if we OK reading the hkls.
-     if (!clipper_reso_set_flag) {
-	if (tmp_lim > 0.0) { // the starting value
-	   resolution_.init( 1/sqrt(tmp_lim)); // 210170 // just above
-	   target.init( space_group, cell_, resolution_ );
-	   std::cout << "Resolution limit set to " << resolution_.limit() << std::endl; 
-	} else {
-	   std::cout << "Disaster couldn't set resolution" << std::endl;
-	}
-     }
+    if (!doc_.blocks.empty()) { 
+      int ierr;
+      HKL hkl;
+      int hklcol[3] = {-1, -1, -1};
+      for (gemmi::cif::Block &data : doc_.blocks) {
+        if (data.has_mmcif_category("_refln.")){
+          const gemmi::cif::Item *p_item = data.find_loop_item("_refln.index_h");
+          hklcol[0] = p_item->loop.find_tag("_refln.index_h");
+          hklcol[1] = p_item->loop.find_tag("_refln.index_k");
+          hklcol[2] = p_item->loop.find_tag("_refln.index_l");
+          for (size_t j=0; j<p_item->loop.length(); j++) {
+            ierr = get_hkl(hkl, p_item, j, hklcol);
+            if (!ierr) {
+              if (clipper_reso_set_flag) {
+                if (hkl.invresolsq(target.cell()) < slim ) {
+                  hkls.push_back(hkl);
+                }
+              } else { // resolution had not been set
+                if (hkl.invresolsq(target.cell()) > tmp_lim) {
+                  tmp_lim = hkl.invresolsq(target.cell());
+                }
+              }
+            }
+          }
+        }  
+      }
+    }
+    // Now we can initialise target properly, if we OK reading the hkls.
+    if (!clipper_reso_set_flag) {
+	    if (tmp_lim > 0.0) { // the starting value
+	      resolution_.init( 1/sqrt(tmp_lim)); // 210170 // just above
+	      target.init( space_group, cell_, resolution_ );
+	      std::cout << "Resolution limit set to " << resolution_.limit() << std::endl; 
+	    } else {
+	      std::cout << "Disaster couldn't set resolution" << std::endl;
+	    }
+    }
   }
   // Quiet! Silence is the clipper way :)
   // std::cout << "import_hkl_info read " << hkls.size() << " hkls" << std::endl; 
   target.add_hkl_list( hkls );
 }
-
-
 
 /*! Import data from an CIF file into an HKL_data object.
 
@@ -663,162 +643,92 @@ void CIFfile::import_hkl_data( HKL_data_base& cdata )
   }
 }
 
-// return non-zero if we find a cell and symmetry and can set them.
-// 
-int 
-CIFfile::set_cell_symm_reso_by_cif(std::string cif_file_name) {
-
-   FILE* cif = fopen( cif_file_name.c_str(), "r" );
-   if ( cif == NULL )
-      Message::message( Message_fatal( "CIFfile: set_cell_symm_reso_by_cif - Could not read: "+cif_file_name ) );
-   fclose( cif );
-   
-   ::mmdb::mmcif::File ciffile; 
-   int ierr = ciffile.ReadMMCIFFile(cif_file_name.c_str()); 
-   
-   if (ierr!=::mmdb::mmcif::CIFRC_Ok) { 
-      
-      std::string mess = "CIFfile: set_cell_symm_reso_by_cif: Could not read: ";
-      mess += filename.c_str();
-      mess += " dirty mmCIF file? "; 
-      Message::message( Message_fatal( mess )); 
-      
-   } else { 
-      
-      for(int i=0; i<ciffile.GetNofData(); i++) {  
-	 
-	 ::mmdb::mmcif::PData data = ciffile.GetCIFData(i);
-	 // data is the same as mmCIF in Eugenes example
-
-	 ::mmdb::mmcif::PStruct mmCIFStruct = data->GetStructure("_cell");
-
-	 char *cat_name_str;
-	 std::string cat_name;
-	    
-	 if (mmCIFStruct != NULL) { 
-
-	    cat_name_str = mmCIFStruct->GetCategoryName();
-	    
-	    if (cat_name_str == NULL) { 
-	       std::cout << "null cat_name_str" << std::endl; 
-	    } else {
-	       
-	       cat_name = cat_name_str; 
-	       if (cat_name == "_cell") {
-		  ::mmdb::realtype a,b,c,alpha,beta,gamma;
-		  int ierr = 0; 
-		  ierr += mmCIFStruct->GetReal (a,     "length_a");
-		  ierr += mmCIFStruct->GetReal (b,     "length_b");
-		  ierr += mmCIFStruct->GetReal (c,     "length_c");
-		  ierr += mmCIFStruct->GetReal (alpha, "angle_alpha");
-		  ierr += mmCIFStruct->GetReal (beta,  "angle_beta");
-		  ierr += mmCIFStruct->GetReal (gamma, "angle_gamma");
-		  
-		  if (! ierr) {
-		     // set clipper cell
-		     clipper_cell_set_flag = 1;
-		     cell_.init(clipper::Cell_descr(a,b,c,alpha,beta,gamma));
-		     // std::cout << "got cell from cif: "
-		     // << cell_.format() << std::endl;
-		  }
-	       }
-	    }
-	 }
-
-	 // Try reading symmetry construction
-	 mmCIFStruct = data->GetStructure("_symmetry");
-
-	 if (mmCIFStruct != NULL) { 
-	    cat_name_str = mmCIFStruct->GetCategoryName();
-	    if (cat_name_str != NULL) { 
-	       cat_name = cat_name_str; 
-	       if ( cat_name == "_symmetry") {
-		  int ierr; 
-		  char *str = mmCIFStruct->GetString("space_group_name_H-M",ierr);
-		  if (! ierr) {
-		     std::string hmsymm(str);
-		     if (str) { 
-			hmsymm = str;
-			space_group.init(clipper::Spgr_descr(str));
-			clipper_symm_set_flag = 1;
-// 			std::cout << "INFO space_group from symmetry in cif: "
-// 				  << space_group.descr().symbol_hm() << std::endl;
-		     }
-		  }
-	       }
-	    }
-	 }
-
-	 // Have another try for symmetry: e.g. from shelx cif files:
-	 // (such files tell us the symmetry operators, so we can get
-	 // the space group from those rather than the name using a
-	 // clipper function).
-	 for (int icat=0; icat<data->GetNumberOfCategories(); icat++) { 
-
-	    ::mmdb::mmcif::PCategory cat = data->GetCategory(icat);
-
-	    std::string cat_name(cat->GetCategoryName()); 
-
-	    ::mmdb::mmcif::PLoop mmCIFLoop = data->GetLoop(cat_name.c_str() );
-	    
-	    if (mmCIFLoop) { 
-	       if (cat_name == "_symmetry_equiv") {
-		  std::string symmetry_ops("");
-		  for (int j=0; j<mmCIFLoop->GetLoopLength(); j++) {
-		     char *str = mmCIFLoop->GetString("pos_as_xyz", j, ierr);
-		     symmetry_ops += str;
-		     symmetry_ops += " ; ";
-		  }
-		  if (symmetry_ops != "") {
-		     clipper_symm_set_flag = 1;
-		     space_group.init(clipper::Spgr_descr(symmetry_ops));
-		  }
-	       }
-	    }
-	 }
-
-	 
-	 // Reflection meta data:
-	 // 
-	 mmCIFStruct = data->GetStructure("_reflns");
-	 if (mmCIFStruct != NULL) { 
-	    cat_name_str = mmCIFStruct->GetCategoryName();
-	    if (cat_name_str != NULL) { 
-	       cat_name = cat_name_str; 
-	       if ( cat_name == "_reflns") {
-		  ::mmdb::realtype reso;
-		  int ierr = mmCIFStruct->GetReal(reso, "d_resolution_high");
-		  if (! ierr ) {
-		     clipper_reso_set_flag = 1;
-		     resolution_.init(reso);
-// 		     std::cout << "got resolution from cif: "
-// 			       << resolution_.limit() << std::endl;
-		  }
-	       }
-	    }
-	 }
+/*! Set cell, symmetry and resolution if found in CIF file
+    Return non-zero if we find a cell and symmetry and can set them.
+    \param cif_file_name The input filename or path 
+    \return non-zero if cell and symmetry are found and set. */ 
+int CIFfile::set_cell_symm_reso_by_cif(std::string cif_file_name)
+{
+  if (!doc_.blocks.empty()) {   
+    for(gemmi::cif::Block &data : doc_.blocks) {
+      // get cell paramaters
+      if (data.has_mmcif_category("_cell.")) {
+         const std::string *a = data.find_value("_cell.length_a");
+         const std::string *b = data.find_value("_cell.length_b");
+         const std::string *c = data.find_value("_cell.length_c");
+         const std::string *alpha = data.find_value("_cell.angle_alpha");
+         const std::string *beta = data.find_value("_cell.angle_beta");
+         const std::string *gamma = data.find_value("_cell.angle_gamma");
+         if (!gemmi::cif::is_null(*a) && !gemmi::cif::is_null(*b) && !gemmi::cif::is_null(*c) &&
+             !gemmi::cif::is_null(*alpha) && !gemmi::cif::is_null(*beta) && !gemmi::cif::is_null(*gamma)) {
+            // set clipper cell
+            clipper_cell_set_flag = 1;
+            cell_.init(clipper::Cell_descr(String(*a).f64(), String(*b).f64(), String(*c).f64(), String(*alpha).f64(),
+                                           String(*beta).f64(), String(*gamma).f64()));
+            // std::cout << "got cell from cif: "
+            // << cell_.format() << std::endl;
+         }
       }
-   }
-   return
-      clipper_symm_set_flag &&
-      clipper_cell_set_flag; 
+
+	    // Try reading symmetry construction
+      if (data.has_tag("_symmetry.space_group_name_H-M")) {
+         const std::string *spgHM = data.find_value("_symmetry.space_group_name_H-M");
+         if (!gemmi::cif::is_null(*spgHM)) {
+            space_group.init(clipper::Spgr_descr(*spgHM));
+            clipper_symm_set_flag = 1;
+            // 			std::cout << "INFO space_group from symmetry in cif: "
+            // 				  << space_group.descr().symbol_hm() << std::endl;
+         }
+      }
+
+	    // Have another try for symmetry: e.g. from shelx cif files:
+	    // (such files tell us the symmetry operators, so we can get
+	    // the space group from those rather than the name using a
+	    // clipper function).
+      if (data.has_tag("_symmetry_equiv.pos_as_xyz")) {
+        std::string symmetry_ops("");
+        for (std::string &ops : data.find_loop("_symmetry_equiv.pos_as_xyz")) {
+          symmetry_ops += ops + " ; ";
+        }
+        if (symmetry_ops != "") {
+          clipper_symm_set_flag = 1;
+          space_group.init(clipper::Spgr_descr(symmetry_ops));
+        }
+      }
+	 
+	    // Reflection meta data:
+	    if ( data.has_tag("_reflns.d_resolution_high") ) {
+	      std::string dres_high = *data.find_value("_refln.d_resolution_high");
+	      if (!gemmi::cif::is_null(dres_high)) { 
+	        xtype reso = clipper::String(dres_high).f64();
+		      clipper_reso_set_flag = 1;
+		      resolution_.init(reso);
+          // std::cout << "got resolution from cif: "
+          //    << resolution_.limit() << std::endl;
+		    }
+	    }
+	  }
+	}
+  return clipper_symm_set_flag && clipper_cell_set_flag; 
 }
 
-// return non-zero if we find a cell and symmetry and can set them.
-// 
-int 
-CIFfile::set_cell_symm_reso(std::string cif_file_name) { 
-// return non-zero if we find a cell and symmetry and can set them.
+/*! Return non-zero if we find a cell and symmetry and can set them.
+  \param cif_file_name Cif file name
+  \return non-zero if cell and symmetry are found and set. */
+int CIFfile::set_cell_symm_reso(std::string cif_file_name) {
 
-   if (set_cell_symm_reso_by_cif(cif_file_name)) { 
-      return 1; 
+   if (set_cell_symm_reso_by_cif(cif_file_name)) {
+      return 1;
    } else {
       return set_cell_symm_reso_by_kludge(cif_file_name);
    }
 }
 
-int 
-CIFfile::set_cell_symm_reso_by_kludge(std::string cif_file_name) { 
+/*! Find cell and symmetry through the lines in the Cif file.
+  \param cif_file_name The input filename or path
+  \return non-zero if the cell and symmetry are found and set
+*/
+int CIFfile::set_cell_symm_reso_by_kludge(std::string cif_file_name) { 
    
    // Cif files from the RCSB do not contain cell and symmetry
    // information in cif format (now how totally crap is that? - but I
@@ -947,9 +857,7 @@ CIFfile::set_cell_symm_reso_by_kludge(std::string cif_file_name) {
       }
    }
 
-   return
-      clipper_cell_set_flag &&
-      clipper_symm_set_flag; 
+   return clipper_cell_set_flag && clipper_symm_set_flag; 
 }
  
 

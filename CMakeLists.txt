@@ -5,7 +5,7 @@ include(GNUInstallDirs)
 
 option(BUILD_SHARED_LIBS "build shared libs (true)" TRUE)
 
-find_package(CCP4 REQUIRED mmdb2 ccp4c)
+find_package(CCP4 REQUIRED ccp4c)
 find_package(gemmi 0.6.4 CONFIG REQUIRED)
 
 # FFTW2 - first search in the install path, then in the system
@@ -23,7 +23,7 @@ find_package(Threads)
 include(${CMAKE_SOURCE_DIR}/cmake/source.cmake)
 
 set(PACKAGE "clipper")
-set(VERSION "2.2") # might need to bump major version to 3?
+set(VERSION "2.2-dev") # might need to bump major version to 3?
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmakein
                ${CMAKE_CURRENT_BINARY_DIR}/config.h @ONLY)
 
@@ -31,7 +31,8 @@ set(prefix      ${CMAKE_INSTALL_PREFIX})
 set(exec_prefix ${CMAKE_INSTALL_PREFIX})
 set(libdir      ${CMAKE_INSTALL_PREFIX}/lib)
 set(includedir  ${CMAKE_INSTALL_PREFIX}/include)
-set(CLIPPER_REQUIRES "ccp4c mmdb2")
+set(CLIPPER_REQUIRES "ccp4c") #mmdb2")
+
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/clipper.pc.cmakein
    ${CMAKE_CURRENT_BINARY_DIR}/clipper.pc.in @ONLY)
  file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/clipper.pc
@@ -162,38 +163,38 @@ install(TARGETS clipper-phs
       PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/clipper/phs
 )
 
-add_library(clipper-mmdb ${clipper-mmdb_sources} ${clipper-mmdb_headers})
-add_library(clipper::mmdb ALIAS clipper-mmdb)
+#add_library(clipper-mmdb ${clipper-mmdb_sources} ${clipper-mmdb_headers})
+#add_library(clipper::mmdb ALIAS clipper-mmdb)
 
-target_link_libraries(clipper-mmdb PRIVATE 
-                             clipper::core 
-                             ${MMDB2_LIBRARY}
-)
-if(Threads_FOUND)
-target_link_libraries(clipper-mmdb PRIVATE Threads::Threads)
-endif()
+#target_link_libraries(clipper-mmdb PRIVATE 
+#                             clipper::core 
+#                             ${MMDB2_LIBRARY}
+#)
+#if(Threads_FOUND)
+#target_link_libraries(clipper-mmdb PRIVATE Threads::Threads)
+#endif()
 
-target_include_directories(clipper-mmdb PRIVATE .
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/clipper/core
-    ${CMAKE_SOURCE_DIR}/clipper/mmdb
-    ${MMDB2_INCLUDE_DIR}
-    ${CCP4C_INCLUDE_DIR}
-    ${FFTW3_INCLUDE_DIRS}
-    ${CMAKE_BINARY_DIR}
-)
+#target_include_directories(clipper-mmdb PRIVATE .
+#    ${CMAKE_SOURCE_DIR}
+#    ${CMAKE_SOURCE_DIR}/clipper/core
+#    ${CMAKE_SOURCE_DIR}/clipper/mmdb
+#    ${MMDB2_INCLUDE_DIR}
+#    ${CCP4C_INCLUDE_DIR}
+#    ${FFTW3_INCLUDE_DIRS}
+#    ${CMAKE_BINARY_DIR}
+#)
 
-set_target_properties(clipper-mmdb PROPERTIES PUBLIC_HEADER "${CMAKE_SOURCE_DIR}/clipper/clipper-mmdb.h")
-set_target_properties(clipper-mmdb PROPERTIES PRIVATE_HEADER "${clipper-mmdb_headers}")
-set_target_properties(clipper-mmdb PROPERTIES SOVERSION ${VERSION})
+#set_target_properties(clipper-mmdb PROPERTIES PUBLIC_HEADER "${CMAKE_SOURCE_DIR}/clipper/clipper-mmdb.h")
+#set_target_properties(clipper-mmdb PROPERTIES PRIVATE_HEADER "${clipper-mmdb_headers}")
+#set_target_properties(clipper-mmdb PROPERTIES SOVERSION ${VERSION})
 
-install(TARGETS clipper-mmdb
-      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-      PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/clipper/
-      PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/clipper/mmdb
-)
+#install(TARGETS clipper-mmdb
+#      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+#      PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/clipper/
+#      PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/clipper/mmdb
+#)
 
 add_library(clipper-ccp4 ${clipper-ccp4_sources} ${clipper-ccp4_headers})
 add_library(clipper::ccp4 ALIAS clipper-ccp4)
@@ -264,10 +265,10 @@ add_library(clipper::minimol ALIAS clipper-minimol)
 
 target_link_libraries(clipper-minimol PRIVATE 
                              clipper::core 
-                             clipper::mmdb
+			     #clipper::mmdb
                              clipper::gemmi
                              ${CCP4C_LIBRARY}
-                             ${MMDB2_LIBRARY}
+			     #${MMDB2_LIBRARY}
 			                 gemmi::gemmi_cpp
 )
 if(Threads_FOUND)
@@ -277,7 +278,7 @@ endif()
 target_include_directories(clipper-minimol PRIVATE .
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/clipper/core
-    ${CMAKE_SOURCE_DIR}/clipper/mmdb
+    #${CMAKE_SOURCE_DIR}/clipper/mmdb
     ${CMAKE_SOURCE_DIR}/clipper/gemmi
     ${CMAKE_SOURCE_DIR}/clipper/minimol
     ${MMDB2_INCLUDE_DIR}

@@ -6,7 +6,7 @@
 
 #include "clipper/minimol/minimol_utils.h"
 //#include "clipper/minimol/minimol_io.h"
-#include "clipper/minimol/minimol_io_mmdb.h"
+//#include "clipper/minimol/minimol_io_mmdb.h"
 #include "clipper/minimol/minimol_io_seq.h"
 #include "clipper/minimol/minimol_io_gemmi.h"
 #include "clipper/minimol/container_minimol.h"
