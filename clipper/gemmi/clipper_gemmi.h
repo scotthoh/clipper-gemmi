@@ -93,16 +93,16 @@ public:
 
   //! Import map data from gemmi's Ccp4.grid into Xmap
   template <class T>
-  static void import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<> &mapobj);
+  static void import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<ftype32> &mapobj);
   //! Import map data from gemmi's Ccp4.grid into NXmap
   template <class T>
-  static void import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<> &mapobj);
+  static void import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<ftype32> &mapobj);
   //! Export map data to gemmi's Ccp4.grid from Xmap
   template <class T>
-  static void export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<> &mapobj);
+  static void export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<ftype32> &mapobj);
   //! Export map data to gemmi's Ccp4.grid from NXmap
   template <class T>
-  static void export_nxmap(const NXmap<T> &nxmap, gemmi::Ccp4<> &mapobj,
+  static void export_nxmap(const NXmap<T> &nxmap, gemmi::Ccp4<ftype32> &mapobj,
                            const Cell &unitcell);
 
 private:
@@ -114,7 +114,7 @@ private:
     orderfms - fast medium slow order
     unitcell - unit cell */
   // template <class T>
-  static void prepare_gemmi_header(gemmi::Ccp4<> &mapobj,
+  static void prepare_gemmi_header(gemmi::Ccp4<ftype32> &mapobj,
                                    std::array<int, 3> dim,
                                    std::array<int, 3> gfms0,
                                    std::array<int, 3> grid,
@@ -127,7 +127,7 @@ private:
   \param xmap The Xmap to be imported.
   \param mapobj The gemmi::Ccp4 map containing the grid data. */
 template <class T>
-void GEMMI::import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<> &mapobj) {
+void GEMMI::import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<ftype32> &mapobj) {
   // check if HKL_info params are already set
   Spacegroup s = xmap.spacegroup();
   Cell c = xmap.cell();
@@ -174,7 +174,7 @@ void GEMMI::import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<> &mapobj) {
   \param nxmap The NXmap to be imported.
   \param mapobj The gemmi::Ccp4 map containing the grid data. */
 template <class T>
-void GEMMI::import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<> &mapobj) {
+void GEMMI::import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<ftype32> &mapobj) {
   std::array<int, 3> orderfms, orderxyz, gfms0, gfms1, dim, g, grid;
   orderxyz = mapobj.axis_positions(); // starts from 0
   dim = mapobj.header_3i32(1);
@@ -205,7 +205,7 @@ void GEMMI::import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<> &mapobj) {
   \param xmap The Xmap to be exported.
   \param mapobj The gemmi::Ccp4 map to hold the grid data.*/
 template <class T>
-void GEMMI::export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<> &mapobj) {
+void GEMMI::export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<ftype32> &mapobj) {
   std::array<int, 3> orderfms, orderxyz, grid, gfms0, gfms1, dim;
   int spg = xmap.spacegroup().descr().spacegroup_number();
   //  use axis order 1,2,3 (fast, medium, slow) for gemmi Ccp4 map
@@ -244,7 +244,7 @@ void GEMMI::export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<> &mapobj) {
   \param mapobj The gemmi::Ccp4 map to hold the grid data.
   \param unitcell The unit cell for the map.*/
 template <class T>
-void GEMMI::export_nxmap(const NXmap<T> &nxmap, gemmi::Ccp4<> &mapobj,
+void GEMMI::export_nxmap(const NXmap<T> &nxmap, gemmi::Ccp4<ftype32> &mapobj,
                          const Cell &unitcell) {
   std::array<int, 3> grid, gfms0, gfms1, dim;
   std::array<int, 3> orderfms{1, 2, 3};
