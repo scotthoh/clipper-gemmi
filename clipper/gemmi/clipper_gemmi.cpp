@@ -5,6 +5,28 @@
 
 namespace clipper
 {
+void GEMMI::prepare_gemmi_header(gemmi::Ccp4<> &mapobj, std::array<int, 3> dim,
+                                 std::array<int, 3> gfms0,
+                                 std::array<int, 3> grid,
+                                 std::array<int, 3> orderfms, Cell unitcell) {
+  mapobj.prepare_ccp4_header_except_mode_and_stats();
+  mapobj.set_header_3i32(1, dim[0], dim[1], dim[2]);
+  mapobj.set_header_3i32(5, gfms0[0], gfms0[1], gfms0[2]);
+  mapobj.set_header_3i32(8, grid[0], grid[1], grid[2]);
+  // fast, medium, slow order
+  mapobj.set_header_3i32(17, orderfms[0], orderfms[1], orderfms[2]);
+  mapobj.set_header_float(11, (float)unitcell.a());
+  mapobj.set_header_float(12, (float)unitcell.b());
+  mapobj.set_header_float(13, (float)unitcell.c());
+  mapobj.set_header_float(14, (float)unitcell.alpha_deg());
+  mapobj.set_header_float(15, (float)unitcell.beta_deg());
+  mapobj.set_header_float(16, (float)unitcell.gamma_deg());
+  mapobj.setup(NAN);
+  if (mapobj.grid.spacegroup->number != 1)
+    mapobj.grid.symmetrize_max();
+  mapobj.update_ccp4_header(2);
+}
+
 /* Internal: Get dataset name and a list of column names from clipper path name. */
 const std::vector<String> extract_column_names(const String &assign, const int &f_size) {
   std::vector<String> col_names(f_size, "MNF");

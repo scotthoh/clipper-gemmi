@@ -15,6 +15,7 @@
 
 namespace clipper {
 using Miller = gemmi::Miller;
+
 //! Gemmi interface class
 /*! This class contains static methods which convert various objects
   between Clipper and Gemmi formats. See https://gemmi.readthedocs.io/en/latest/
@@ -91,13 +92,33 @@ public:
                                                      const std::vector<Miller> &miller_indices);
 
   //! Import map data from gemmi's Ccp4.grid into Xmap
-  template <class T> static void import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<T> &mapobj);
+  template <class T>
+  static void import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<> &mapobj);
   //! Import map data from gemmi's Ccp4.grid into NXmap
-  template <class T> static void import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<T> &mapobj);
+  template <class T>
+  static void import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<> &mapobj);
   //! Export map data to gemmi's Ccp4.grid from Xmap
-  template <class T> static void export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<T> &mapobj);
+  template <class T>
+  static void export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<> &mapobj);
   //! Export map data to gemmi's Ccp4.grid from NXmap
-  template <class T> static void export_nxmap(const NXmap<T> &nxmap, gemmi::Ccp4<T> &mapobj, const Cell &unitcell);
+  template <class T>
+  static void export_nxmap(const NXmap<T> &nxmap, gemmi::Ccp4<> &mapobj,
+                           const Cell &unitcell);
+
+private:
+  /* Internal: Prepare gemmi::Ccp4 map object header.
+    mapobj - gemmi Ccp4 map object
+    dim - dimension of grid in std::array<int, 3>
+    gfms0 - NXSTART, NYSTART, NZSTART; location of first column, row, section
+    grid - full grid size
+    orderfms - fast medium slow order
+    unitcell - unit cell */
+  // template <class T>
+  static void prepare_gemmi_header(gemmi::Ccp4<> &mapobj,
+                                   std::array<int, 3> dim,
+                                   std::array<int, 3> gfms0,
+                                   std::array<int, 3> grid,
+                                   std::array<int, 3> orderfms, Cell unitcell);
 }; // class GEMMI
 
 // Implementations templates
@@ -105,7 +126,8 @@ public:
     Run setup(0) on gemmi::Ccp4 map object before importing grid data to Xmap.
   \param xmap The Xmap to be imported.
   \param mapobj The gemmi::Ccp4 map containing the grid data. */
-template <class T> void GEMMI::import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<T> &mapobj) {
+template <class T>
+void GEMMI::import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<> &mapobj) {
   // check if HKL_info params are already set
   Spacegroup s = xmap.spacegroup();
   Cell c = xmap.cell();
@@ -130,15 +152,18 @@ template <class T> void GEMMI::import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<T> &
   }
   // copy map data from gemmi map object
   Xmap_base::Map_reference_coord x(xmap);
-  bool zero_orig = (std::all_of(gfms0.cbegin(), gfms0.cend(), [](const int index) { return index == 0; }));
+  bool zero_orig = (std::all_of(gfms0.cbegin(), gfms0.cend(),
+                                [](const int index) { return index == 0; }));
   for (g[2] = gfms0[2]; g[2] <= gfms1[2]; g[2]++) {
     for (g[1] = gfms0[1]; g[1] <= gfms1[1]; g[1]++) {
       for (g[0] = gfms0[0]; g[0] <= gfms1[0]; g[0]++) {
         x.set_coord(Coord_grid(g[orderxyz[0]], g[orderxyz[1]], g[orderxyz[2]]));
         if (zero_orig)
-          xmap[x] = mapobj.grid.get_value_q(g[orderxyz[0]], g[orderxyz[1]], g[orderxyz[2]]);
+          xmap[x] = mapobj.grid.get_value_q(g[orderxyz[0]], g[orderxyz[1]],
+                                            g[orderxyz[2]]);
         else
-          xmap[x] = mapobj.grid.get_value(g[orderxyz[0]] - gfms0[orderxyz[0]], g[orderxyz[1]] - gfms0[orderxyz[1]],
+          xmap[x] = mapobj.grid.get_value(g[orderxyz[0]] - gfms0[orderxyz[0]],
+                                          g[orderxyz[1]] - gfms0[orderxyz[1]],
                                           g[orderxyz[2]] - gfms0[orderxyz[2]]);
       }
     }
@@ -148,7 +173,8 @@ template <class T> void GEMMI::import_xmap(Xmap<T> &xmap, const gemmi::Ccp4<T> &
 /*! Import grid data from gemmi::Ccp4::grid into NXmap.
   \param nxmap The NXmap to be imported.
   \param mapobj The gemmi::Ccp4 map containing the grid data. */
-template <class T> void GEMMI::import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<T> &mapobj) {
+template <class T>
+void GEMMI::import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<> &mapobj) {
   std::array<int, 3> orderfms, orderxyz, gfms0, gfms1, dim, g, grid;
   orderxyz = mapobj.axis_positions(); // starts from 0
   dim = mapobj.header_3i32(1);
@@ -158,15 +184,18 @@ template <class T> void GEMMI::import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<T
   for (int i = 0; i < 3; i++) {
     gfms1[i] = gfms0[i] + dim[i] - 1;
   }
-  Grid_range grid_map(Coord_grid(gfms0[orderxyz[0]], gfms0[orderxyz[1]], gfms0[orderxyz[2]]),
-                      Coord_grid(gfms1[orderxyz[0]], gfms1[orderxyz[1]], gfms1[orderxyz[2]]));
+  Grid_range grid_map(
+      Coord_grid(gfms0[orderxyz[0]], gfms0[orderxyz[1]], gfms0[orderxyz[2]]),
+      Coord_grid(gfms1[orderxyz[0]], gfms1[orderxyz[1]], gfms1[orderxyz[2]]));
   nxmap.init(cell(mapobj.grid.unit_cell), r, grid_map);
   // copy map data from gemmi map object
   for (g[2] = 0; g[2] <= gfms1[2] - gfms0[2]; g[2]++) {
     for (g[1] = 0; g[1] <= gfms1[1] - gfms0[1]; g[1]++) {
       for (g[0] = 0; g[0] <= gfms1[0] - gfms0[0]; g[0]++) {
-        nxmap.set_data(Coord_grid(g[orderxyz[0]], g[orderxyz[1]], g[orderxyz[2]]),
-                       mapobj.grid.get_value_q(g[orderxyz[0]], g[orderxyz[1]], g[orderxyz[2]]));
+        nxmap.set_data(
+            Coord_grid(g[orderxyz[0]], g[orderxyz[1]], g[orderxyz[2]]),
+            mapobj.grid.get_value_q(g[orderxyz[0]], g[orderxyz[1]],
+                                    g[orderxyz[2]]));
       }
     }
   } // finish copy data
@@ -175,7 +204,8 @@ template <class T> void GEMMI::import_nxmap(NXmap<T> &nxmap, const gemmi::Ccp4<T
 /*! Export map data to gemmi's Ccp4::grid from Xmap.
   \param xmap The Xmap to be exported.
   \param mapobj The gemmi::Ccp4 map to hold the grid data.*/
-template <class T> void GEMMI::export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<T> &mapobj) {
+template <class T>
+void GEMMI::export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<> &mapobj) {
   std::array<int, 3> orderfms, orderxyz, grid, gfms0, gfms1, dim;
   int spg = xmap.spacegroup().descr().spacegroup_number();
   //  use axis order 1,2,3 (fast, medium, slow) for gemmi Ccp4 map
@@ -201,7 +231,8 @@ template <class T> void GEMMI::export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<T> &
     for (g[1] = gfms0[1]; g[1] <= gfms1[1]; g[1]++) {
       for (g[0] = gfms0[0]; g[0] <= gfms1[0]; g[0]++) {
         x.set_coord(Coord_grid(g[orderxyz[0]], g[orderxyz[1]], g[orderxyz[2]]));
-        mapobj.grid.set_value(g[orderxyz[0]], g[orderxyz[1]], g[orderxyz[2]], T(xmap[x]));
+        mapobj.grid.set_value(g[orderxyz[0]], g[orderxyz[1]], g[orderxyz[2]],
+                              T(xmap[x]));
       }
     }
   }
@@ -212,16 +243,22 @@ template <class T> void GEMMI::export_xmap(const Xmap<T> &xmap, gemmi::Ccp4<T> &
   \param nxmap The NXmap to be exported.
   \param mapobj The gemmi::Ccp4 map to hold the grid data.
   \param unitcell The unit cell for the map.*/
-template <class T> void GEMMI::export_nxmap(const NXmap<T> &nxmap, gemmi::Ccp4<T> &mapobj, const Cell &unitcell) {
+template <class T>
+void GEMMI::export_nxmap(const NXmap<T> &nxmap, gemmi::Ccp4<> &mapobj,
+                         const Cell &unitcell) {
   std::array<int, 3> grid, gfms0, gfms1, dim;
   std::array<int, 3> orderfms{1, 2, 3};
   // grids
   Coord_frac c0, c1;
   c0 = nxmap.coord_orth(Coord_map(0, 0, 0)).coord_frac(unitcell);
-  c1 = nxmap.coord_orth(Coord_map(nxmap.grid().nu(), nxmap.grid().nv(), nxmap.grid().nw())).coord_frac(unitcell);
-  Grid_sampling grid_sam = Grid_sampling(Util::intr(ftype(nxmap.grid().nu()) / (c1.u() - c0.u())),
-                                         Util::intr(ftype(nxmap.grid().nv()) / (c1.v() - c0.v())),
-                                         Util::intr(ftype(nxmap.grid().nw()) / (c1.w() - c0.w())));
+  c1 = nxmap
+           .coord_orth(Coord_map(nxmap.grid().nu(), nxmap.grid().nv(),
+                                 nxmap.grid().nw()))
+           .coord_frac(unitcell);
+  Grid_sampling grid_sam =
+      Grid_sampling(Util::intr(ftype(nxmap.grid().nu()) / (c1.u() - c0.u())),
+                    Util::intr(ftype(nxmap.grid().nv()) / (c1.v() - c0.v())),
+                    Util::intr(ftype(nxmap.grid().nw()) / (c1.w() - c0.w())));
   Coord_grid g0 = c0.coord_grid(grid_sam);
   Coord_grid g1 = g0 + Coord_grid(nxmap.grid()) - Coord_grid(1, 1, 1);
   Grid_range grid_map = Grid_range(g0, g1);
@@ -243,7 +280,8 @@ template <class T> void GEMMI::export_nxmap(const NXmap<T> &nxmap, gemmi::Ccp4<T
   for (iu = i0; iu.coord().u() <= g1.u(); iu.next_u()) {
     for (iv = iu; iv.coord().v() <= g1.v(); iv.next_v()) {
       for (iw = iv; iw.coord().w() <= g1.w(); iw.next_w()) {
-        mapobj.grid.set_value(iw.coord().u(), iw.coord().v(), iw.coord().w(), T(nxmap[iw]));
+        mapobj.grid.set_value(iw.coord().u(), iw.coord().v(), iw.coord().w(),
+                              T(nxmap[iw]));
       }
     }
   }
@@ -257,25 +295,7 @@ template <class T> void GEMMI::export_nxmap(const NXmap<T> &nxmap, gemmi::Ccp4<T
   grid - full grid size
   orderfms - fast medium slow order
   unitcell - unit cell */
-template <class T>
-void prepare_gemmi_header(gemmi::Ccp4<T> &mapobj, std::array<int, 3> dim, std::array<int, 3> gfms0,
-                          std::array<int, 3> grid, std::array<int, 3> orderfms, Cell unitcell) {
-  mapobj.prepare_ccp4_header_except_mode_and_stats();
-  mapobj.set_header_3i32(1, dim[0], dim[1], dim[2]);
-  mapobj.set_header_3i32(5, gfms0[0], gfms0[1], gfms0[2]);
-  mapobj.set_header_3i32(8, grid[0], grid[1], grid[2]);
-  mapobj.set_header_3i32(17, orderfms[0], orderfms[1], orderfms[2]); // fast, medium ,slow order
-  mapobj.set_header_float(11, (float)unitcell.a());
-  mapobj.set_header_float(12, (float)unitcell.b());
-  mapobj.set_header_float(13, (float)unitcell.c());
-  mapobj.set_header_float(14, (float)unitcell.alpha_deg());
-  mapobj.set_header_float(15, (float)unitcell.beta_deg());
-  mapobj.set_header_float(16, (float)unitcell.gamma_deg());
-  mapobj.setup(NAN);
-  if (mapobj.grid.spacegroup->number != 1)
-    mapobj.grid.symmetrize_max();
-  mapobj.update_ccp4_header(2);
-}
+// template <class T = ftype32>
 
 } // namespace clipper
 
