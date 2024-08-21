@@ -23,7 +23,7 @@ find_package(Threads)
 include(${CMAKE_SOURCE_DIR}/cmake/source.cmake)
 
 set(PACKAGE "clipper")
-set(VERSION "3.0-dev") # might need to bump major version to 3?
+set(VERSION "3.0.1-dev") # might need to bump major version to 3?
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmakein
                ${CMAKE_CURRENT_BINARY_DIR}/config.h @ONLY)
 
