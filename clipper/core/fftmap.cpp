@@ -143,7 +143,7 @@ void FFTmap_p1::fft_h_to_x( const ftype& scale )
   if ( mode == REAL ) return;
   // need this spare vector for planning
   // if FFTW_MEASURE is used, it overwrites in/out array during planning
-  std::vector<std::complex<ffttype>> arr(grid_real_.size());
+  std::vector< std::complex<ffttype> > arr(grid_real_.size());
   // scale
   ffttype s = ffttype( scale );
   int n = grid_reci_.size();
@@ -176,7 +176,7 @@ void FFTmap_p1::fft_x_to_h( const ftype& scale )
   if ( mode == RECI ) return;
   // need this spare vector for planning
   // if FFTW_MEASURE is used, it overwrites in/out array during planning
-  std::vector<std::complex<ffttype>> arr(grid_real_.size());
+  std::vector< std::complex<ffttype> > arr(grid_real_.size());
   // fft
   int flags = ( type_ == Measure ) ? ( FFTW_MEASURE ) : ( FFTW_ESTIMATE );
   

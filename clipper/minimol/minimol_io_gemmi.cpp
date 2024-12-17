@@ -42,6 +42,7 @@
 #include "minimol_io_gemmi.h"
 
 #include <gemmi/chemcomp_xyz.hpp>
+#include <gemmi/resinfo.hpp>
 
 extern "C" {
 #include <string.h>
@@ -392,7 +393,7 @@ void GEMMIfile::export_minimol(MiniMol &minimol) {
           gmon.db->seqid.icode = inscode;
       }
       if (!gmon.db->het_flag) {
-        bool std_res = ::gemmi::find_tabulated_residue(gmon.db->name).is_standard();
+        bool std_res = gemmi::find_tabulated_residue( gmon.db->name ).is_standard();
         gmon.db->het_flag = std_res ? 'A' : 'H';
       }
       for (int a = 0; a < gmon.data.size(); a++) { // loop through atoms

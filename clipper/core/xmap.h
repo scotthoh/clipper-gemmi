@@ -670,7 +670,7 @@ namespace clipper
     simpler and imposes less demands on the compiler.
     \param fphidata The reflection data list to set.
   */
-  template<class T> template<class H> void Xmap<T>::fft_to  ( H& fphidata, const FFTtype type ) const
+  template<class T> template<class H> void Xmap<T>::fft_to( H& fphidata, const FFTtype type ) const
   {
     if ( type == Sparse || ( type == Default && default_type() == Sparse ) ) {
       // make a sparse fftmap
