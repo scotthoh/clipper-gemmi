@@ -328,9 +328,8 @@ HKL_data<data64::ABCD> GEMMI::as_HKL_data(
   HKL_data<data64::ABCD> hkl_data(hkl_info);
   data64::ABCD abcd;
   for (std::size_t i = 0; i < miller_indices.size(); i++) {
-    std::array<double, 4> datum = {data[0]->at(i), data[1]->at(i),
-                                   data[2]->at(i), data[3]->at(i)};
-    abcd.data_import(datum.begin());
+    double datum[4] = { data[0]->at( i ), data[1]->at( i ), data[2]->at( i ), data[3]->at( i ) };
+    abcd.data_import( datum );
     if (!hkl_data.set_data(Hkl(miller_indices[i]), abcd))
       Message::message(Message_fatal("GEMMI: Unable to set data for " +
                                      Hkl(miller_indices[i]).format()));
