@@ -6,7 +6,7 @@ include(GNUInstallDirs)
 option(BUILD_SHARED_LIBS "build shared libs (true)" TRUE)
 
 find_package(CCP4 REQUIRED ccp4c)
-find_package(gemmi 0.6.4 CONFIG REQUIRED)
+find_package(gemmi 0.6.7 CONFIG REQUIRED)
 
 # FFTW2 - first search in the install path, then in the system
 find_library(FFTW3_LIBRARY NAMES fftw3f
@@ -23,7 +23,7 @@ find_package(Threads)
 include(${CMAKE_SOURCE_DIR}/cmake/source.cmake)
 
 set(PACKAGE "clipper")
-set(VERSION "3.0.1-dev") # might need to bump major version to 3?
+set(VERSION "3.0.3-dev") # might need to bump major version to 3?
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmakein
                ${CMAKE_CURRENT_BINARY_DIR}/config.h @ONLY)
 
